@@ -1,4 +1,4 @@
-<img src="/img/lim.png" alt="drawing" width="200"/>
+<img src="/img/LIM.png" alt="drawing" width="200"/>
 
 # Procedural Dialogue Generation
 
