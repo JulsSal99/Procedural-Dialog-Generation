@@ -52,12 +52,10 @@ dir_path = config.get('files', 'dir_path', fallback=os.path.dirname(os.path.real
 input_folder = config.get('files', 'input_folder', fallback="INPUT")
 output_folder = config.get('files', 'output_folder', fallback="OUTPUT")
 import_name1 = os.path.join("__pycache__", config.get('files', 'custom_path', fallback="output_files.json"))
+noise_file = config.get('files', 'noise_file', fallback="")
 # fade
 fade_length = config.getfloat('fade', 'fade_length', fallback=0)
 fade_type = config.getint('fade', 'fade_type', fallback=0)
-# noise
-enable_noise = config.getboolean('noise', 'enable_noise', fallback=False)
-noise_file = config.get('noise', 'noise_file', fallback="")
 # silences
 s_min = config.getfloat('silences', 'min', fallback=0.05)
 s_max = config.getfloat('silences', 'max', fallback=0.120)
@@ -83,13 +81,11 @@ pop_tollerance = sample_rate * 1
 save_name1 = os.path.join("__pycache__", "output_files.json")
 pos_participants = {}
 
-def cfg_check(count_answers, count_questions):
-    if (n_answers>count_answers):
+def cfg_check():
+    '''if (n_answers>count_answers):
         raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")
     if (n_questions>count_questions):
-        raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")
-    if enable_noise == True and noise_file == "":
-        raise Exception("cfg_check - noise file should not be empty")
+        raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")'''
     if volume != "ND" or volume != "H" or volume != "L":
          raise Exception("cfg_check - volume should be ND, H or L")
     if gender_fixed_quantity != False and limit_male_female == "0:0":
@@ -272,7 +268,7 @@ def noise(raw_file):
 def concatenate_fade(audio1, audio2, shape):
     '''Concatenate two audio files using a noise as a bandade (two fade-in, fade-out)'''
     fade = int(fade_length * sample_rate)
-    if enable_noise:
+    if noise_file != "":
         noise = sf.read(dir_path + "/" + noise_file)[0]
         if len(noise) < (fade * 2):
             fade = int(len(noise) / 2)
@@ -299,7 +295,7 @@ def concatenate_fade(audio1, audio2, shape):
     fade_in = np.flip(fade_out)
     FO_audio1 = audio1[-fade:] * fade_out
     FI_audio2 = audio2[:fade] *fade_in
-    if enable_noise:
+    if noise_file != "":
         noise = noise[:(fade*2)]
         FI_rumore = noise[:fade]*fade_in
         FO_rumore = noise[-fade:]*fade_out
@@ -331,7 +327,7 @@ def concatenate(data1, data2, pause_length):
         silence = np.zeros((n_sample_silence, channels))
     else: #mono
         silence = np.zeros((n_sample_silence,))
-    if enable_noise:
+    if noise_file != "":
         silence = noise(silence)
         OUTPUT = concatenate_fade(data1, silence, shape)
         OUTPUT = concatenate_fade(OUTPUT, data2, shape)
@@ -419,7 +415,7 @@ def dialogs_join(file_names:list, silences:list):
                             OUTPUT = np.zeros((int(len(file_names[0]['data'])), channels))
                         else:
                             OUTPUT = np.zeros((int(len(file_names[0]['data'])),))
-                        if enable_noise:
+                        if noise_file != "":
                             OUTPUT = noise(OUTPUT)
                 else:
                     # aggiunge pausa e concatena elementi pieni o vuoti in base al valore di i.
@@ -430,14 +426,14 @@ def dialogs_join(file_names:list, silences:list):
                             file_silence = np.zeros((int(len(file_names[j]['data'])), channels))
                         else:
                             file_silence = np.zeros((int(len(file_names[j]['data'])),))
-                        if enable_noise:
+                        if noise_file != "":
                             file_silence = noise(file_silence)
                         OUTPUT = concatenate(OUTPUT, file_silence, silences[j - 1])
             OUTPUT2.append([OUTPUT, print_name])
             logging.info(f"dialogs_join \t - SUCCESS for: {print_name}")
     OUTPUT = file_complete(file_names, silences)
     OUTPUT2.append([OUTPUT, "COMPLETE"])
-    return OUTPUT2, silences
+    return OUTPUT2
 
 
 # /////////////////////////////////// SOUNDS //////////////////////////////////
@@ -549,7 +545,7 @@ def sounds(file_names, audio_no_s, silences):
                         start_sound = int(float(sample_rate)*j[2])
                         end_sound = len(sound)+start_sound
                         shape = len(sum.shape)
-                        if enable_noise:
+                        if noise_file != "":
                             sum_tmp = concatenate_fade(sum[:start_sound], sound, shape)
                             sum = concatenate_fade(sum_tmp, sum[end_sound:], shape)
                         elif fade_length == 0:
@@ -860,10 +856,11 @@ def custom_files():
                     file_names = data
                 elif all(isinstance(item, str) for item in data):
                     logging.info(f"custom_files \t - INFO: found list")
-                    max_participants, _, _, _, _, _, _ = folder_info(os.path.join(dir_path, input_folder))
+                    tmp_input_folder = os.path.join(dir_path, input_folder)
+                    max_participants, _, _, _, _, _, _ = folder_info(tmp_input_folder)
                     if len(data) > 1 and len(data) <= max_participants:
                         for tmp_file in data:
-                            file = find_file(tmp_file, os.path.join(dir_path, input_folder))
+                            file = find_file(tmp_file, tmp_input_folder)
                             file_names = add_file(file_names, file)
                     else:
                         raise Exception('file JSON does not contain a valid array. Format should be ["a.wav","b.wav",...]')
@@ -886,11 +883,14 @@ def custom_files():
 
 def write_files(OUTPUT:list):
     print("\t writing files into the hard drive...")
+    output_path = os.path.join(dir_path, output_folder)
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     for i in OUTPUT:
         if volume == "ND" and i[1] in pos_participants:
-            write_name = os.path.join(dir_path, output_folder+f'/merged{i[1]}_{pos_participants[i[1]]}.wav')
+            write_name = os.path.join(output_path, f'/merged{i[1]}_{pos_participants[i[1]]}.wav')
         else:
-            write_name = os.path.join(dir_path, output_folder+f'/merged{i[1]}_{volume}.wav')
+            write_name = os.path.join(output_path, f'/merged{i[1]}_{volume}.wav')
         sf.write(write_name, i[0], sample_rate)
         logging.info(f"write_files \t\t - SUCCESS: Created {write_name}")
     logging.info(f"write_files \t\t - SUCCESS: All files Saved")
@@ -903,9 +903,10 @@ if __name__ == '__main__':
         '''Create output array [data, person] and silences/pauses values'''
         silences = silence_generator(file_names)
         '''create an array of pause_length for each (between) file'''
-        OUTPUT, silences = dialogs_join(file_names, silences)
+        OUTPUT = dialogs_join(file_names, silences)
         '''Create output array [data, person]: add silences/pauses to output data'''
         OUTPUT = sounds(file_names, OUTPUT, silences)
+        '''Write files to the hard drive'''
         write_files(OUTPUT)
         os.startfile(os.path.join(dir_path, output_folder))
     except Exception as e:
