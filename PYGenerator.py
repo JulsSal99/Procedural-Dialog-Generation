@@ -81,16 +81,17 @@ pop_tollerance = sample_rate * 1
 save_name1 = os.path.join("__pycache__", "output_files.json")
 pos_participants = {}
 
-def cfg_check():
-    '''if (n_answers>count_answers):
+'''def cfg_check():
+    if (n_answers>count_answers):
         raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")
     if (n_questions>count_questions):
-        raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")'''
-    if volume != "ND" or volume != "H" or volume != "L":
-         raise Exception("cfg_check - volume should be ND, H or L")
-    if gender_fixed_quantity != False and limit_male_female == "0:0":
-        raise Exception("cfg_check - fixed_quantity should not be False if limit_male_female is empty")
-    logging.info(f"cfg_check \t - SUCCESS")
+        raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")
+    logging.info(f"cfg_check \t - SUCCESS")'''
+if (volume != "ND" and volume != "H" and volume != "L"):
+    raise Exception(f"cfg_check - volume ({volume}) should be ND, H or L")
+if gender_fixed_quantity == True and limit_male_female == "0:0":
+    raise Exception(f"cfg_check - fixed_quantity should not be {gender_fixed_quantity} if limit_male_female is empty ({limit_male_female})")
+
 
 def check_limits():
     try:
@@ -907,6 +908,7 @@ if __name__ == '__main__':
         '''Create output array [data, person]: add silences/pauses to output data'''
         OUTPUT = sounds(file_names, OUTPUT, silences)
         '''Write files to the hard drive'''
+        exit()
         write_files(OUTPUT)
         os.startfile(os.path.join(dir_path, output_folder))
     except Exception as e:
