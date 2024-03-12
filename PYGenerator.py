@@ -372,7 +372,7 @@ def file_complete(file_names, silences):
     logging.info(f"file_complete \t\t - SUCCESS.")
     return OUTPUT
 
-def data_reader(file_names):
+def data_checker(file_names):
     '''Read each single audio file and add raw data to file_names'''
     '''and check sample rate and channels with check_SR_CH'''
     global channels, sample_rate
@@ -387,7 +387,7 @@ def data_reader(file_names):
         file_names[i]['data'], rate_temp = sf.read(file_names[i]['path'])
         channels_temp = get_channels(file_names[i]['data'])
         check_SR_CH(file_names[i]['name'], rate_temp, channels_temp)
-    logging.info(f"data_reader \t\t - SUCCESS.")
+    logging.info(f"data_checker \t\t - SUCCESS.")
 
 def dialogs_join(file_names:list, silences:list):
     ''' MAIN FUNCTION: create the ending file'''
@@ -395,7 +395,7 @@ def dialogs_join(file_names:list, silences:list):
     ''' check channels, sample_rate'''
 
     # Add audio data and check sample rate and channels
-    data_reader(file_names)
+    data_checker(file_names)
     
     print("\t creating data...")
     OUTPUT2 = []
@@ -439,7 +439,7 @@ def dialogs_join(file_names:list, silences:list):
 
 def filenames_lengths(file_names, silences):
     '''Create array for each output file with path, person, start and end'''
-    '''also handle silences'''
+    '''also handle silences, run also if silences is empty'''
     arr = []
     lengh_end, length_start = 0, 0
     i = 0
@@ -448,10 +448,11 @@ def filenames_lengths(file_names, silences):
         lengh_end = len_file + lengh_end
         arr.append([filename["path"], filename["person"], length_start, lengh_end])
         length_start = lengh_end
-        if i != (len(file_names)-1):
-            length_start = length_start + silences[i]
-            lengh_end = lengh_end + silences[i]
-            i += 1
+        if len(silences) != 0:
+            if i != (len(file_names)-1):
+                length_start = length_start + silences[i]
+                lengh_end = lengh_end + silences[i]
+                i += 1
     logging.info(f"filenames_lengths \t - SUCCESS: {arr}")
     return arr
 
@@ -893,9 +894,7 @@ def custom_files():
                     tmp_input_folder = os.path.join(dir_path, input_folder)
                     max_participants, _, _, _, _, _, _ = folder_info(tmp_input_folder)
                     if len(data) > 1 and len(data) <= max_participants:
-                        for tmp_file in data:
-                            file = find_file(tmp_file, tmp_input_folder)
-                            file_names = add_file(file_names, file)
+                        file_names = add_list_files(data, tmp_input_folder)
                     else:
                         raise Exception('file JSON does not contain a valid array. Format should be ["a.wav","b.wav",...]')
                 else: 
@@ -919,6 +918,25 @@ def custom_files():
             raise Exception(f"file {import_name1} or file {save_name2} not found.")
     logging.info(f"custom_files \t - SUCCESS: {file_names}")
     return file_names
+
+def add_list_files(file_list:list, tmp_input_folder:str):
+    for tmp_file in file_list:
+        file = find_file(tmp_file, tmp_input_folder)
+        file_names = add_file(file_names, file)
+    logging.info(f"add_list_files \t\t - SUCCESS")
+    return file_names
+
+'''def read_files(file_names:list) -> list:
+    OUTPUT = []
+    for i in file_names:
+        data, rate_temp = sf.read(i)
+        channels_temp = get_channels(data)
+        if rate_temp != sample_rate or channels_temp != channels:
+            raise Exception(f"Could not read these files: sample rate ({rate_temp}) != {sample_rate} or ({channels_temp}) != {channels}")
+        OUTPUT.append([data, get_person(i))
+    logging.info(f"read_files \t\t - SUCCESS: All files loaded")
+    print("\n\t Loaded Files!")
+    return OUTPUT'''
 
 def write_files(OUTPUT:list):
     print("\t writing files into the hard drive...")
