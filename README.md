@@ -94,17 +94,17 @@ name_format = person_gender_volume_type_question
 custom_path = output_files.json
 
 
-[silences] # silences values
+[silences] # silences values (in seconds)
 min = 0.05
 max = 0.120
 
 
-[long pauses] # long pauses (a pause between a question and another question without any initial question) values
+[long pauses] # long pauses (a pause between a question and another question without any initial question) values (in seconds)
 min = 0.9
 max = 1.2
 
 
-[pauses] # pauses values
+[pauses] # pauses values (in seconds)
 min = 0.7
 max = 0.9
 
@@ -113,27 +113,24 @@ max = 0.9
 # This float value goes from 0 to 1. If 1, uses all sounds, if 0, none
 s_quantity = 1
 
-# minimum distance between one sound and another in seconds
+# minimum distance between the start of one sound and another. This DOES not consider answers, only sounds (in seconds)
 min_s_distance = 5
 
-# redundancy before and after to avoid overlap sounds in seconds
+# redundancy before and after to avoid overlap sounds (in seconds)
 cut_redundancy = 1.5
-
-# lenght is fixed to not cause unuseful reads in seconds, but you can specify any value if you want to
-length_sounds = 2
 
 # you can also specify how loud a sound should be if you want to
 sound_amp_fact = 1
 
-# placing gap at the end of the final file to avoid different lenghts in the final audio file in seconds
-end_tollerance = 3
-
 # how many times does the random function search for an empty space. Bigger values get better results, but a slower code
 cycle_limit = 10
 
+# if you don't want the same sound too close to another, just add this variable (in seconds)
+similar_distance = 5
+
 
 [fade] # apply fade in- and fade-out to each sample
-# lenght of the fade. Value is in seconds
+# length of the fade. (in seconds)
 fade_length = 0
 
 # fade type. There are 2 values: 0 for logarithmic, 1 for linear 
