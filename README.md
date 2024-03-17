@@ -94,19 +94,19 @@ name_format = person_gender_volume_type_question
 custom_path = output_files.json
 
 
+[pauses] # pauses values (in seconds)
+min = 0.7
+max = 2.0
+
+
 [silences] # silences values (in seconds)
 min = 0.05
 max = 0.120
 
 
-[long pauses] # long pauses (a pause between a question and another question without any initial question) values (in seconds)
+[long pauses] # long pauses (a pause after an answer) values (in seconds)
 min = 0.9
 max = 1.2
-
-
-[pauses] # pauses values (in seconds)
-min = 0.7
-max = 0.9
 
 
 [sounds]

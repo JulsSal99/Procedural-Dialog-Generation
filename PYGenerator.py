@@ -64,7 +64,7 @@ lp_min = config.getfloat('long pauses', 'min', fallback=0.9)
 lp_max = config.getfloat('long pauses', 'max', fallback=1.2)
 # pauses
 p_min = config.getfloat('pauses', 'min', fallback=0.7)
-p_max = config.getfloat('pauses', 'max', fallback=0.9)
+p_max = config.getfloat('pauses', 'max', fallback=2.0)
 # sounds
 s_quantity = config.getfloat('sounds', 's_quantity', fallback=0.5)
 min_s_distance = config.getfloat('sounds', 'min_s_distance', fallback=5)
@@ -348,16 +348,21 @@ def silence_generator(file_names):
     silences = []
     length = len(file_names) - 1
     for i in range(length):
-        if get_type(file_names[i]['name']) == "I":
-            # if the pause is a SILENCE
-            pause_length = random.uniform(s_min, s_max)
-        elif get_type(file_names[i]['name']) == "A" and i != length:
-            if get_nquestion(file_names[i]['name']) and get_nquestion(file_names[i+1]['name']):
-                pause_length = random.uniform(lp_min, lp_max)  # seconds
-            else:
-                pause_length = random.uniform(p_min, p_max)  # seconds
-        else:
+        first_file = file_names[i]['name']
+        first_type = get_type(first_file)
+        second_file = file_names[i+1]['name']
+        second_type = get_type(second_file)
+        if first_type == "Q":
             pause_length = random.uniform(p_min, p_max)  # seconds
+        elif first_type == "I":
+            if second_type == "A":
+                # if the pause is a SILENCE
+                pause_length = random.uniform(p_min, p_max)
+            elif second_type == "Q":
+                pause_length = random.uniform(s_min, s_max)
+        elif first_type == "A":
+            # if the pause is after an answer (LONG PAUSE)
+            pause_length = random.uniform(lp_min, lp_max)  # seconds
         silences.append(pause_length)
     logging.info(f"silence_generator \t - SUCCESS.")
     return silences
@@ -456,6 +461,12 @@ def filenames_lengths(file_names, silences):
     logging.info(f"filenames_lengths \t - SUCCESS: {arr}")
     return arr
 
+def check_length(output_length, max_duration, name):
+    limit_length = ceil(max_duration*sample_rate)
+    if output_length > limit_length or output_length < limit_length-2:
+        logging.info(f"check_length \t\t - ERROR for: {name}")
+        raise Exception (f"INTERNAL ERROR: {name} (with length: {output_length}) does not match {limit_length} length")
+
 def handle_s_strangers(sound_files, participants):
     for filename in sound_files:
         person = get_person(filename)
@@ -464,16 +475,25 @@ def handle_s_strangers(sound_files, participants):
     return sound_files
 
 def handle_s_quantity(sound_files):
+    '''This code add sound files. The first time it adds all files, then proceed shuffling'''
     length_before = len(sound_files)
     int_s_quantity = int(s_quantity)
-    tmp_sound_files = []
+    tmp_sound_files2 = []
+    tmp_sound_files1 = []
+    random.shuffle(sound_files)
     for i in range(int_s_quantity+1):
-        random.shuffle(sound_files)
         if i == (int_s_quantity):
             sound_files = sound_files[:int(len(sound_files)*(s_quantity%1))]
-        tmp_sound_files += sound_files
-    logging.info(f"handle_s_quantity \t - SUCCESS: {length_before} -> {len(tmp_sound_files)}")
-    return tmp_sound_files
+        if i == 0 or i == (int_s_quantity):
+            tmp_sound_files1 += sound_files
+        else:
+            # run only on elements that aren't the first or the last element
+            for _ in range(len(sound_files)):
+                tmp_sound_files2.append(random.choice(sound_files))
+    random.shuffle(tmp_sound_files2)
+    tmp_sound_files1 += tmp_sound_files2
+    logging.info(f"handle_s_quantity \t - SUCCESS: {length_before} -> {len(tmp_sound_files1)}")
+    return tmp_sound_files1
 
 def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duration):
     '''create 2D list of sounds. Each sound has a random position in seconds'''
@@ -548,63 +568,65 @@ def sound_reader(sound_names):
     logging.info(f"sound_reader \t - SUCCESS")
     return sounds, length_data
 
+def sounds_concatenate(audio_no_s, sounds: list, sound_data:dict, max_duration:float):
+    output = []
+    for i in audio_no_s:
+        name = i[1]
+        if name != "COMPLETE":
+            sum = i[0]
+            for j in sounds:
+                # if the person is the same
+                if name == j[1]:
+                    sound = sound_data[os.path.basename(j[0])]
+                    if sound_amp_fact != 1.0:
+                        sound = sound * sound_amp_fact
+                    start_sound = int(float(sample_rate)*j[2])
+                    end_sound = len(sound)+start_sound
+                    shape = len(sum.shape)
+                    if noise_file != "":
+                        sum_tmp = concatenate_fade(sum[:start_sound], sound, shape)
+                        sum = concatenate_fade(sum_tmp, sum[end_sound:], shape)
+                    elif fade_length == 0:
+                        if channels > 1: #stereo
+                            sum_tmp = np.concatenate((sum[:start_sound-1], sound, sum[end_sound-1:]), axis=0)
+                        else: #mono
+                            sum = np.concatenate((sum_tmp[:start_sound-1], sound, sum[end_sound-1:]))
+                    else:
+                        sum_tmp = concatenate_fade(sum[:(start_sound-1)], sound, shape)
+                        sum = concatenate_fade(sum_tmp, sum[(end_sound-1):], shape)
+            check_length(len(sum), max_duration, name)
+            output.append([sum, name])
+        elif name == "COMPLETE":
+            for h in output:
+                if h[1] != "COMPLETE":
+                    if 'summed_data' not in locals():
+                        summed_data = h[0]
+                    else:
+                        summed_data = np.add(summed_data, h[0])
+            output.append([summed_data, "COMPLETE"])
+        logging.info(f"sounds_concatenate \t - SUCCESS for: {name}")
+    return output
+
 def sounds(file_names, audio_no_s, silences):
     '''core function called to add burst into the dialogue'''
     _, _, _, _, sound_files, _, _ = folder_info(os.path.join(dir_path, input_folder))
-    output = []
     if s_quantity == 0:
         logging.info(f"sounds \t\t\t - ABORT: s_quantity = 0")
-        output = audio_no_s
+        return audio_no_s
     else:
         # -1 takes the last file (COMPLETE)
         print("\t adding new sounds...", end=" ")
-        max_duration = raw_to_seconds(audio_no_s[-1][0])
         tmp_participants = []
         for i in audio_no_s:
             tmp_participants.append(i[1])
+        max_duration = raw_to_seconds(audio_no_s[-1][0])
         sound_files = handle_s_strangers(sound_files, tmp_participants)
         sound_data, sound_length = sound_reader(sound_files)
         sound_files = handle_s_quantity(sound_files)
         audio_length = filenames_lengths(file_names, silences)
         sounds = handle_sounds(sound_files, audio_length, sound_length, max_duration)
         print(f"\t writing sounds...")
-        for i in audio_no_s:
-            if i[1] != "COMPLETE":
-                sum = i[0]
-                for j in sounds:
-                    # if the person is the same
-                    if i[1] == j[1]:
-                        sound = sound_data[os.path.basename(j[0])]
-                        if sound_amp_fact != 1.0:
-                            sound = sound * sound_amp_fact
-                        start_sound = int(float(sample_rate)*j[2])
-                        end_sound = len(sound)+start_sound
-                        shape = len(sum.shape)
-                        if noise_file != "":
-                            sum_tmp = concatenate_fade(sum[:start_sound], sound, shape)
-                            sum = concatenate_fade(sum_tmp, sum[end_sound:], shape)
-                        elif fade_length == 0:
-                            if channels > 1: #stereo
-                                sum_tmp = np.concatenate((sum[:start_sound-1], sound, sum[end_sound-1:]), axis=0)
-                            else: #mono
-                                sum = np.concatenate((sum_tmp[:start_sound-1], sound, sum[end_sound-1:]))
-                        else:
-                            sum_tmp = concatenate_fade(sum[:(start_sound-1)], sound, shape)
-                            sum = concatenate_fade(sum_tmp, sum[(end_sound-1):], shape)
-                limit = ceil(max_duration*sample_rate)
-                if len(sum) > limit or len(sum) < limit-2:
-                    raise Exception (f"INTERNAL ERROR: {i[1]} (with length: {len(sum)}) does not match {limit} length")
-                output.append([sum, i[1]])
-            elif i[1] == "COMPLETE":
-                for j in output:
-                    if j[1] != "COMPLETE":
-                        if 'summed_data' not in locals():
-                            summed_data = j[0]
-                        else:
-                            summed_data = np.add(summed_data, j[0])
-                output.append([summed_data, "COMPLETE"])
-            logging.info(f"sounds \t\t\t - SUCCESS for: {i[1]}")
-    return output
+        return sounds_concatenate(audio_no_s, sounds, sound_data, max_duration)
 
 # /////////////////////////////////// SOUNDS //////////////////////////////////
 
