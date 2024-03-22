@@ -50,13 +50,13 @@ n_questions = 0
 n_answers = 0
 
 # Percentage initial question presence. 1 always, 0 never
-prob_init_question = 0.5
+prob_prompt = 0.5
 
 # Percentage question presence. 1 always, 0 never
 prob_question = 0.5
 
 # probability an initial question will be followed by a new question
-prob_i_q = 0.8
+prob_p_q = 0.8
 
 # volume of answers. "ND" if NOT DEFINED, "L" if LOW volume, "H" if HIGH volume
 volume = ND
@@ -90,9 +90,11 @@ name_format = person_gender_volume_type_question
 # output files folder inside master folder
 # Example: output_folder = OUTPUT 
 
-# if custom_file is not specified, it will only take as an input  ["03_M_Q_01_L.wav", "01_M_A_01_L", "03_M_Q_02_L", "01_M_A_02_L", "01_M_Q_02_L"]
-custom_path = output_files.json
+# if custom_file is specified, it will take a dialogue user-generated order. See the end for details. The file is always inside the "custom" folder
+# Example: custom_path = output_files.json
 
+# if custom_sounds is specified, it will take a sounds list user-generated. See the end for details. The file is always inside the "custom" folder
+# Example: custom_sounds = sounds.json
 
 [pauses] # pauses values (in seconds)
 min = 0.7
@@ -137,16 +139,28 @@ fade_length = 0
 fade_type = 0
 ```
 
-custom_path file shoud have one of these formats:
+custom_path file (position is inside the "temp" folder) shoud have one of these formats:
 ```json
-["03_M_Q_01_L.wav", "01_M_A_01_L", "03_M_Q_02_L", "01_M_A_02_L", "01_M_Q_02_L"]
+["03_M_Q_01_L.wav", "01_M_A_01_L"]
 ```
 ```json
-[{"path": "C:/Users/giuli/Music/Edit\\INPUT/03_M_Q_01_L.wav", "data": 0, "name": "03_M_Q_01_L", "person": "03", "duplicated": false}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/01_M_A_01_L.wav", "data": 0, "name": "01_M_A_01_L", "person": "01", "duplicated": false}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/03_M_Q_02_L.wav", "data": 0, "name": "03_M_Q_02_L", "person": "03", "duplicated": true}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/01_M_A_02_L.wav", "data": 0, "name": "01_M_A_02_L", "person": "01", "duplicated": true}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/01_M_Q_02_L.wav", "data": 0, "name": "01_M_Q_02_L", "person": "01", "duplicated": true}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/07_M_A_02_L.wav", "data": 0, "name": "07_M_A_02_L", "person": "07", "duplicated": false}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/07_M_I_02_L.wav", "data": 0, "name": "07_M_I_02_L", "person": "07", "duplicated": true}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/03_M_A_02_L.wav", "data": 0, "name": "03_M_A_02_L", "person": "03", "duplicated": true}]
+[{"path": "C:/Users/giuli/Music/Edit\\INPUT/03_M_Q_01_L.wav", "data": 0, "name": "03_M_Q_01_L", "person": "03", "duplicated": false}, {"path": "C:/Users/giuli/Music/Edit\\INPUT/01_M_A_01_L.wav", "data": 0, "name": "01_M_A_01_L", "person": "01", "duplicated": false}]
 ```
-if you want to specify a different position for a generation with ND volume, you can create a file with the same custom_path name, but, it needs to end with "_pos.json". ù
+
+if you want to specify a different person position ("1" = far, "2" = near) for a generation with ND volume, you can create a file with the same custom_path name, but, it needs to end with "_pos.json".
 Example: if custom_path is output_files.json, your positions file should be output_files_pos.json .
 Inside that file, format should be:
 ```json
  {"01": 1, "02": 1, "03": 1, "04": 0}
 ```
+
+custom_sounds file (position is inside the "temp" folder) shoud have one of these formats:
+```json
+["03_M_Q_01_L.wav", "01_M_A_01_L"]
+```
+```json
+{"01_M_L_B_06.wav": 66.07703229845748, "03_M_L_B_08.wav": 41.9889395611619}
+```
+
+## debugging
+Inside the "temp" folder you can find some examples and a logging.log file. This file shows the progress during the execution of the program, so you can easily find any issue or functionality inside the python code.

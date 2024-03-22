@@ -6,8 +6,9 @@ import logging
 import os
 
 def logger():
-    
-    log_file = os.path.join("__pycache__", "logging.log")
+    if not os.path.exists("temp"):
+        os.makedirs("temp")
+    log_file = os.path.join("temp", "logging.log")
     logging.basicConfig(filename=log_file, filemode='w', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)

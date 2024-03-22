@@ -9,6 +9,7 @@ import numpy as np
 import random
 import logging
 import configparser
+import json
 import logger
 logger.logger()
 
@@ -39,8 +40,8 @@ random_q_order = config.getboolean('global', 'random_q_order', fallback=True)
 n_questions = config.getint('global', 'n_questions', fallback=0)
 n_answers = config.getint('global', 'n_answers', fallback=0)
 prob_question = config.getfloat('global', 'prob_question', fallback=0.5)
-prob_init_question = config.getfloat('global', 'prob_init_question', fallback=0.5)
-prob_i_q = config.getfloat('global', 'prob_i_q', fallback=0.8)
+prob_prompt = config.getfloat('global', 'prob_prompt', fallback=0.5)
+prob_p_q = config.getfloat('global', 'prob_p_q', fallback=0.8)
 volume = config.get('global', 'volume', fallback="ND")
 first_question = config.getboolean('global', 'first_question', fallback=True)
 # gender
@@ -51,8 +52,9 @@ name_format = (config.get('files', 'name_format')).split("_")
 dir_path = config.get('files', 'dir_path', fallback=os.path.dirname(os.path.realpath(__file__)))
 input_folder = config.get('files', 'input_folder', fallback="INPUT")
 output_folder = config.get('files', 'output_folder', fallback="OUTPUT")
-import_name1 = os.path.join("__pycache__", config.get('files', 'custom_path', fallback="output_files.json"))
+import_name1 = os.path.join("custom", config.get('files', 'custom_path', fallback="output_files.json"))
 noise_file = config.get('files', 'noise_file', fallback="")
+import_name_s = os.path.join("custom", config.get('files', 'custom_sounds', fallback="sounds.json"))
 # fade
 fade_length = config.getfloat('fade', 'fade_length', fallback=0)
 fade_type = config.getint('fade', 'fade_type', fallback=0)
@@ -76,8 +78,13 @@ closest_distance = config.getfloat('sounds', 'similar_distance', fallback=5)
 sample_rate = config.getint('data', 'sample_rate', fallback=0)
 channels = config.getint('data', 'sample_rate', fallback=0)
 pop_tollerance = sample_rate * 1
-save_name1 = os.path.join("__pycache__", "output_files.json")
+save_name1 = os.path.join("temp", "output_files.json")
+save_name_s = os.path.join("temp", "sounds.json")
 pos_participants = {}
+if not config.has_option('files', 'custom_path'): custom_files_enabler = False
+else: custom_files_enabler = True
+if not config.has_option('files', 'custom_sounds'): custom_sounds_enabler = False
+else: custom_sounds_enabler = True
 
 '''def cfg_check():
     if (n_answers>count_answers):
@@ -607,13 +614,60 @@ def sounds_concatenate(audio_no_s, sounds: list, sound_data:dict, max_duration:f
         logging.info(f"sounds_concatenate \t - SUCCESS for: {name}")
     return output
 
+def custom_sounds():
+    sound_files = []
+    try:
+        with open(import_name_s, "r") as file_json:
+            data = json.load(file_json)
+    except FileNotFoundError:
+        raise Exception(f"file {import_name_s} not found.")
+    if isinstance(data, dict):
+        if all(isinstance(key, str) for key in data.keys()) and all(isinstance(value, float) for value in data.values()):
+            output = []
+            not_found = 0
+            folder = os.path.join(dir_path, input_folder)
+            for key, value in data.items():
+                try:
+                    file = find_file(key, folder)
+                    if key not in sound_files:
+                        sound_files.append(key)
+                except Exception as e:
+                    not_found +=1 
+                    logging.info(f"custom_sounds \t - INFO: {key} not found")
+                output.append([file, get_person(key), value])
+            if len(output)==0:
+                raise Exception('file JSON does not contain a valid dict.')
+            if not_found != 0:
+                print("Some files are unavaible, open 'logging.log' to see details")
+            logging.info(f"custom_sounds \t - INFO: found correct dict")
+            return output, sound_files
+        else:
+            raise Exception('file JSON does not contain a valid dict.')
+    elif isinstance(data, list):
+        for row in data:
+            if not isinstance(row, list):
+                raise Exception('file JSON does not contain a valid list.')
+            file = os.path.basename(row[0])
+            if file not in sound_files:
+                sound_files.append(file)
+        if len(data)==0:
+            raise Exception('file JSON does not contain a valid list.')
+        logging.info(f"custom_sounds \t - INFO: found correct list")
+        return data, sound_files
+    else: 
+        raise Exception('file JSON does not contain a valid dict or list')
+
 def sounds(file_names, audio_no_s, silences):
     '''core function called to add burst into the dialogue'''
-    _, _, _, _, sound_files, _, _ = folder_info(os.path.join(dir_path, input_folder))
-    if s_quantity == 0:
+    if custom_sounds_enabler:
+        sounds, sound_files = custom_sounds()
+        max_duration = raw_to_seconds(audio_no_s[-1][0])
+        sound_data, sound_length = sound_reader(sound_files)
+    elif s_quantity == 0:
         logging.info(f"sounds \t\t\t - ABORT: s_quantity = 0")
         return audio_no_s
     else:
+        _, _, _, _, sound_files, _, _ = folder_info(os.path.join(dir_path, input_folder))
         # -1 takes the last file (COMPLETE)
         print("\t adding new sounds...", end=" ")
         tmp_participants = []
@@ -621,12 +675,15 @@ def sounds(file_names, audio_no_s, silences):
             tmp_participants.append(i[1])
         max_duration = raw_to_seconds(audio_no_s[-1][0])
         sound_files = handle_s_strangers(sound_files, tmp_participants)
+        print(sound_files)
         sound_data, sound_length = sound_reader(sound_files)
         sound_files = handle_s_quantity(sound_files)
         audio_length = filenames_lengths(file_names, silences)
         sounds = handle_sounds(sound_files, audio_length, sound_length, max_duration)
-        print(f"\t writing sounds...")
-        return sounds_concatenate(audio_no_s, sounds, sound_data, max_duration)
+        with open((save_name_s), 'w') as file:
+            json.dump(sounds, file)
+    print(f"\t joining dialogue...")
+    return sounds_concatenate(audio_no_s, sounds, sound_data, max_duration)
 
 # /////////////////////////////////// SOUNDS //////////////////////////////////
 
@@ -853,14 +910,14 @@ def dialogs_handler(dir_path:str):
             err_check = 0
             if i_a != 0:
                 tmp_volume = volume_handler(responder, answerers[i_a])
-                if (random.random() < prob_init_question) == True:
+                if (random.random() < prob_prompt) == True:
                     tmp_initquest = search_person(matr_initquest, responder, tmp_volume, j)
                     if tmp_initquest != None:
                         file_names = add_file(file_names, tmp_initquest)
                         err_check += 1
                 else:
                     err_check += 1
-                if ((random.random() < prob_question) == True) and ((random.random() < prob_i_q) == True):
+                if ((random.random() < prob_question) == True) and ((random.random() < prob_p_q) == True):
                     tmp_questions = search_person(matr_questions, responder, tmp_volume, j)
                     if tmp_questions != None:
                         file_names = add_file(file_names, tmp_questions)
@@ -883,9 +940,8 @@ def dialogs_list(dir_path:str):
     '''Generates a dict for every file randomly chosen'''
     '''if a custom settings was found, reads it and returns'''
     '''call handle_auto_files and saves the dict with every file name into __pycache__'''
-    import json
-    if os.path.exists(import_name1) and save_name1!=import_name1:
-        print("\t found custom audio settings file...")
+    if custom_files_enabler:
+        print("\t loading custom audio settings file...")
         return custom_files()
     else:
         print("\t chosing new files and pauses...")
@@ -902,7 +958,6 @@ def custom_files():
     ''' if custom file is a dict, return the dict, '''
     ''' if custom file is an array, find the file and check the dictionary'''
     ''' handle the errors'''
-    import json
     file_names = []
     try:
         with open(import_name1, "r") as file_json:
@@ -976,18 +1031,18 @@ def write_files(OUTPUT:list):
     print("\n COMPLETED! (folder opened)")
 
 if __name__ == '__main__':
-    try:
-        print("\n\tGeneratore di dialoghi realistici.\n")
-        file_names = dialogs_list(dir_path)
-        '''Create output array [data, person] and silences/pauses values'''
-        silences = silence_generator(file_names)
-        '''create an array of pause_length for each (between) file'''
-        OUTPUT = dialogs_join(file_names, silences)
-        '''Create output array [data, person]: add silences/pauses to output data'''
-        OUTPUT = sounds(file_names, OUTPUT, silences)
-        '''Write files to the hard drive'''
-        write_files(OUTPUT)
-        os.startfile(os.path.join(dir_path, output_folder))
-    except Exception as e:
-        print(f"\n ! ERRORE ! \n\tOperation aborted due to internal error: {e}")
-        exit()
+    #try:
+    print("\n\tGeneratore di dialoghi realistici.\n")
+    file_names = dialogs_list(dir_path)
+    '''Create output array [data, person] and silences/pauses values'''
+    silences = silence_generator(file_names)
+    '''create an array of pause_length for each (between) file'''
+    OUTPUT = dialogs_join(file_names, silences)
+    '''Create output array [data, person]: add silences/pauses to output data'''
+    OUTPUT = sounds(file_names, OUTPUT, silences)
+    '''Write files to the hard drive'''
+    write_files(OUTPUT)
+    os.startfile(os.path.join(dir_path, output_folder))
+    #except Exception as e:
+    #    print(f"\n ! ERRORE ! \n\tOperation aborted due to internal error: {e}")
+    #    exit()
