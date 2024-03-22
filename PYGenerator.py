@@ -78,8 +78,8 @@ closest_distance = config.getfloat('sounds', 'similar_distance', fallback=5)
 sample_rate = config.getint('data', 'sample_rate', fallback=0)
 channels = config.getint('data', 'sample_rate', fallback=0)
 pop_tollerance = sample_rate * 1
-save_name1 = os.path.join("temp", "output_files.json")
-save_name_s = os.path.join("temp", "sounds.json")
+save_name1 = os.path.join("__pycache__", "output_files.json")
+save_name_s = os.path.join("__pycache__", "sounds.json")
 pos_participants = {}
 if not config.has_option('files', 'custom_path'): custom_files_enabler = False
 else: custom_files_enabler = True

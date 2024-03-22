@@ -139,7 +139,7 @@ fade_length = 0
 fade_type = 0
 ```
 
-custom_path file (position is inside the "temp" folder) shoud have one of these formats:
+custom_path file (position is inside the "__pycache__" folder) shoud have one of these formats:
 ```json
 ["03_M_Q_01_L.wav", "01_M_A_01_L"]
 ```
@@ -154,7 +154,7 @@ Inside that file, format should be:
  {"01": 1, "02": 1, "03": 1, "04": 0}
 ```
 
-custom_sounds file (position is inside the "temp" folder) shoud have one of these formats:
+custom_sounds file (position is inside the "__pycache__" folder) shoud have one of these formats:
 ```json
 ["03_M_Q_01_L.wav", "01_M_A_01_L"]
 ```
@@ -163,4 +163,4 @@ custom_sounds file (position is inside the "temp" folder) shoud have one of thes
 ```
 
 ## debugging
-Inside the "temp" folder you can find some examples and a logging.log file. This file shows the progress during the execution of the program, so you can easily find any issue or functionality inside the python code.
+Inside the "__pycache__" folder you can find some examples and a logging.log file. This file shows the progress during the execution of the program, so you can easily find any issue or functionality inside the python code.
