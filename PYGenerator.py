@@ -106,6 +106,19 @@ if gender_fixed_quantity == True and limit_male_female == "0:0":
 
 
 class myrand:
+    """
+    A custom random number generator with adjustable seed.
+
+    This class provides methods for generating random numbers
+    while allowing control over the seed for reproducibility.
+
+    Example usage:
+    ```
+    mr = myrand()
+    print(mr.randint(1, 100))
+    ```
+    """
+
     def __init__(self):
         self.global_seed_counter = int(time.time() * 7) % 100
     def seed_changer(self):
@@ -124,15 +137,23 @@ class myrand:
         self.seed_changer()
         random.seed(self.global_seed_counter)
         return random.shuffle(a)
-    def randint(self, a, b):
+    def randint(self, a, b, p1=1):
+        """
+        Return a random integer N such that a <= N <= b.
+
+        :param a: Lower bound.
+        :param b: Upper bound.
+        :param p1: Probability on the first lower number
+        :return: Random integer.
+        """
         self.seed_changer()
         random.seed(self.global_seed_counter)
         # probability for 1 is lower
         output = random.randint(a, b)
-        if output == a and random.random() < 0.2:
+        if output == a and random.random() < p1:
             return a
         else:
-            return output
+            return random.randint(a+1, b)
     def random(self):
         self.seed_changer()
         random.seed(self.global_seed_counter)
@@ -763,9 +784,10 @@ def questions_shuffler(matr1:list, value1:list):
     if random_q_order:
         myrand.shuffle(list1)
     if value1 == 0:
-        list1 = list1[:(myrand.randint(1,len(list1)))]
+        list1 = list1[:(myrand.randint(1,len(list1), 0.5))]
     elif value1 < 0:
-        list1 = list1[:(myrand.randint(1,abs(int(value1))))]
+        length = myrand.randint(1,abs(int(value1)), 0.3)
+        list1 = list1[:(length)]
     else:
         list1 = list1[:(value1-1)]
     return list1
