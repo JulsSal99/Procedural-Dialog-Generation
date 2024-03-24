@@ -6,12 +6,18 @@ libsinstall.install_libraries()
 import os
 import soundfile as sf
 import numpy as np
+import time
 import random
 import logging
 import configparser
 import json
+
+'''
+This code import a logger that saves the logging.log inside the specified
+'''
 import logger
-logger.logger()
+temp_folder = "__pycache__"
+logger.logger(temp_folder)
 
 '''
 
@@ -35,13 +41,14 @@ __author__  = "G.Salada"
 config = configparser.ConfigParser()
 config.read('PYgenerator.cfg')
 
+
 # global
 random_q_order = config.getboolean('global', 'random_q_order', fallback=True)
 n_questions = config.getint('global', 'n_questions', fallback=0)
 n_answers = config.getint('global', 'n_answers', fallback=0)
 prob_question = config.getfloat('global', 'prob_question', fallback=0.5)
 prob_prompt = config.getfloat('global', 'prob_prompt', fallback=0.5)
-prob_p_q = config.getfloat('global', 'prob_p_q', fallback=0.8)
+prob_p_q = config.getfloat('global', 'prob_p_q', fallback=1)
 volume = config.get('global', 'volume', fallback="ND")
 first_question = config.getboolean('global', 'first_question', fallback=True)
 # gender
@@ -58,17 +65,20 @@ import_name_s = os.path.join("custom", config.get('files', 'custom_sounds', fall
 # fade
 fade_length = config.getfloat('fade', 'fade_length', fallback=0)
 fade_type = config.getint('fade', 'fade_type', fallback=0)
+# first pause
+lp_min = config.getfloat('first pause', 'min', fallback=1.4)
+lp_max = config.getfloat('first pause', 'max', fallback=2)
+# pauses
+p_min = config.getfloat('pauses', 'min', fallback=0.5)
+p_max = config.getfloat('pauses', 'max', fallback=1.0)
 # silences
 s_min = config.getfloat('silences', 'min', fallback=0.05)
-s_max = config.getfloat('silences', 'max', fallback=0.120)
-# long pauses
-lp_min = config.getfloat('long pauses', 'min', fallback=0.9)
-lp_max = config.getfloat('long pauses', 'max', fallback=1.2)
-# pauses
-p_min = config.getfloat('pauses', 'min', fallback=0.7)
-p_max = config.getfloat('pauses', 'max', fallback=2.0)
+s_max = config.getfloat('silences', 'max', fallback=0.10)
+# long silences
+ls_min = config.getfloat('long silences', 'min', fallback=1.0)
+ls_max = config.getfloat('long silences', 'max', fallback=2.0)
 # sounds
-s_quantity = config.getfloat('sounds', 's_quantity', fallback=0.5)
+s_quantity = config.getfloat('sounds', 's_quantity', fallback=random.random())
 min_s_distance = config.getfloat('sounds', 'min_s_distance', fallback=5)
 cut_redundancy = config.getfloat('sounds', 'cut_redundancy', fallback=1.5)
 sound_amp_fact = config.getfloat('sounds', 'sound_amp_fact', fallback=1)
@@ -78,25 +88,57 @@ closest_distance = config.getfloat('sounds', 'similar_distance', fallback=5)
 sample_rate = config.getint('data', 'sample_rate', fallback=0)
 channels = config.getint('data', 'sample_rate', fallback=0)
 pop_tollerance = sample_rate * 1
-save_name1 = os.path.join("__pycache__", "output_files.json")
-save_name_s = os.path.join("__pycache__", "sounds.json")
+save_name1 = os.path.join(temp_folder, "output_files.json")
+save_name_s = os.path.join(temp_folder, "sounds.json")
 pos_participants = {}
+
+''' some checks before the program starts... '''
 if not config.has_option('files', 'custom_path'): custom_files_enabler = False
 else: custom_files_enabler = True
 if not config.has_option('files', 'custom_sounds'): custom_sounds_enabler = False
 else: custom_sounds_enabler = True
-
-'''def cfg_check():
-    if (n_answers>count_answers):
-        raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")
-    if (n_questions>count_questions):
-        raise Exception(f"cfg_check - n_answers in configuration file must be <= {count_answers} or -1 for random.")
-    logging.info(f"cfg_check \t - SUCCESS")'''
 if (volume != "ND" and volume != "H" and volume != "L"):
     raise Exception(f"cfg_check - volume ({volume}) should be ND, H or L")
 if gender_fixed_quantity == True and limit_male_female == "0:0":
     raise Exception(f"cfg_check - fixed_quantity should not be {gender_fixed_quantity} if limit_male_female is empty ({limit_male_female})")
 
+'''//////////////////////////////////////////'''
+
+
+class myrand:
+    def __init__(self):
+        self.global_seed_counter = int(time.time() * 7) % 100
+    def seed_changer(self):
+        self.global_seed_counter += 37
+        if self.global_seed_counter > 99:
+            self.global_seed_counter %= 100
+    def choice(self, a):
+        self.seed_changer()
+        random.seed(self.global_seed_counter)
+        return random.choice(a)
+    def uniform(self, a, b):
+        self.seed_changer()
+        random.seed(self.global_seed_counter)
+        return random.uniform(a, b)
+    def shuffle(self, a):
+        self.seed_changer()
+        random.seed(self.global_seed_counter)
+        return random.shuffle(a)
+    def randint(self, a, b):
+        self.seed_changer()
+        random.seed(self.global_seed_counter)
+        # probability for 1 is lower
+        output = random.randint(a, b)
+        if output == a and random.random() < 0.2:
+            return a
+        else:
+            return output
+    def random(self):
+        self.seed_changer()
+        random.seed(self.global_seed_counter)
+        return random.random()
+    
+myrand = myrand()
 
 def check_limits():
     try:
@@ -296,6 +338,8 @@ def concatenate_fade(audio1, audio2, shape):
         fade_out = np.logspace(np.log10(0.15), np.log10(1.05), fade)
     elif fade_type == 1:
         fade_out = np.linspace(np.log10(0.15), np.log10(1.05), fade)
+    elif fade_type == 2:
+        fade_out = np.geomspace(np.log10(0.15), np.log10(1.05), fade)
     #fade_out = np.linspace(0.15, 1.05, fade)
     fade_out = shape_fixer(np.subtract(1.1, fade_out), shape)
     fade_in = np.flip(fade_out)
@@ -354,22 +398,31 @@ def silence_generator(file_names):
     print("\t adding pauses and silences...")
     silences = []
     length = len(file_names) - 1
+    tmp_count_questions = 0
+    previous_question = None
     for i in range(length):
         first_file = file_names[i]['name']
         first_type = get_type(first_file)
         second_file = file_names[i+1]['name']
         second_type = get_type(second_file)
-        if first_type == "Q":
-            pause_length = random.uniform(p_min, p_max)  # seconds
-        elif first_type == "I":
-            if second_type == "A":
+        # count how many questions there are of the same question
+        actual_question = get_nquestion(first_file)
+        if actual_question != previous_question:
+            previous_question = actual_question
+            tmp_count_questions = 0
+        else: tmp_count_questions += 1
+
+        if second_type == "A":
+            if tmp_count_questions == 0:
+                pause_length = myrand.uniform(lp_min, lp_max)  # seconds
+            else:
+                pause_length = myrand.uniform(p_min, p_max)  # seconds
+        elif first_type == "I" and second_type == "Q":
                 # if the pause is a SILENCE
-                pause_length = random.uniform(p_min, p_max)
-            elif second_type == "Q":
-                pause_length = random.uniform(s_min, s_max)
+                pause_length = myrand.uniform(s_min, s_max)
         elif first_type == "A":
             # if the pause is after an answer (LONG PAUSE)
-            pause_length = random.uniform(lp_min, lp_max)  # seconds
+            pause_length = myrand.uniform(ls_min, ls_max)  # seconds
         silences.append(pause_length)
     logging.info(f"silence_generator \t - SUCCESS.")
     return silences
@@ -487,7 +540,7 @@ def handle_s_quantity(sound_files):
     int_s_quantity = int(s_quantity)
     tmp_sound_files2 = []
     tmp_sound_files1 = []
-    random.shuffle(sound_files)
+    myrand.shuffle(sound_files)
     for i in range(int_s_quantity+1):
         if i == (int_s_quantity):
             sound_files = sound_files[:int(len(sound_files)*(s_quantity%1))]
@@ -496,8 +549,8 @@ def handle_s_quantity(sound_files):
         else:
             # run only on elements that aren't the first or the last element
             for _ in range(len(sound_files)):
-                tmp_sound_files2.append(random.choice(sound_files))
-    random.shuffle(tmp_sound_files2)
+                tmp_sound_files2.append(myrand.choice(sound_files))
+    myrand.shuffle(tmp_sound_files2)
     tmp_sound_files1 += tmp_sound_files2
     logging.info(f"handle_s_quantity \t - SUCCESS: {length_before} -> {len(tmp_sound_files1)}")
     return tmp_sound_files1
@@ -517,7 +570,7 @@ def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duratio
             correct = True
             closest_key = ""
             closest_value = 248400
-            delay = random.uniform(0, (max_duration-cut_redundancy-sound_length[filename]))
+            delay = myrand.uniform(0, (max_duration-cut_redundancy-sound_length[filename]))
             if tmp_limit <= cycle_limit:
                 # check if a sound is near another
                 for key, value in tmp_dict.items():
@@ -675,7 +728,6 @@ def sounds(file_names, audio_no_s, silences):
             tmp_participants.append(i[1])
         max_duration = raw_to_seconds(audio_no_s[-1][0])
         sound_files = handle_s_strangers(sound_files, tmp_participants)
-        print(sound_files)
         sound_data, sound_length = sound_reader(sound_files)
         sound_files = handle_s_quantity(sound_files)
         audio_length = filenames_lengths(file_names, silences)
@@ -709,11 +761,11 @@ def questions_shuffler(matr1:list, value1:list):
         if n not in list1:
             list1.append(n)
     if random_q_order:
-        random.shuffle(list1)
+        myrand.shuffle(list1)
     if value1 == 0:
-        list1 = list1[:(random.randint(1,len(list1)))]
-    elif int(value1) < 0:
-        list1 = list1[:(random.randint(1,abs(int(value1))))]
+        list1 = list1[:(myrand.randint(1,len(list1)))]
+    elif value1 < 0:
+        list1 = list1[:(myrand.randint(1,abs(int(value1))))]
     else:
         list1 = list1[:(value1-1)]
     return list1
@@ -766,7 +818,7 @@ def handle_M_F(dist_answerers:list, limit_male:int, limit_female:int, tmp_n_answ
     real_limit_male = 0; real_limit_female = 0
     if gender_fixed_quantity != True: 
         if tmp_n_answers == 1:
-            return [random.choice(dist_answerers)]
+            return [myrand.choice(dist_answerers)]
         if limit_male != 1:
             limit_male = int(float(tmp_n_answers) / (limit_male + limit_female) * limit_male)
         if limit_male == len(dist_answerers) and limit_female == 1:
@@ -798,9 +850,9 @@ def handle_M_F(dist_answerers:list, limit_male:int, limit_female:int, tmp_n_answ
     # create answerers array
     answerers = []
     while True:
-        random.shuffle(dist_answerers)
+        myrand.shuffle(dist_answerers)
         M_F_selector = ["M", "F"]
-        random.shuffle(M_F_selector)
+        myrand.shuffle(M_F_selector)
         for _ in range(2):
             if len(dist_answerers) == 0 or len(answerers) == tmp_n_answers:
                 return answerers
@@ -855,7 +907,7 @@ def dialogs_handler(dir_path:str):
 
     if volume == "ND":
         global pos_participants
-        pos_participants = {item: random.choice([0, 1]) for item in participants}
+        pos_participants = {item: myrand.choice([0, 1]) for item in participants}
 
     if limit_male_female != "0:0":
         limit_male, limit_female = check_limits()
@@ -869,22 +921,22 @@ def dialogs_handler(dir_path:str):
     file_names = []
     for j in list_questions:
         # choose random interrogator
-        interrogator = random.choice(q_participants)
+        interrogator = myrand.choice(q_participants)
         answerers = dict_answers.get(j)
         answerers = list(set(answerers))
 
         # handle number of answers also if negative 
         if n_answers == 0:
-            tmp_n_answers = random.randint(1, len(answerers))
+            tmp_n_answers = myrand.randint(1, len(answerers))
         elif n_answers < 0:
-            tmp_n_answers = random.randint(1, min((abs(n_answers)-1), len(answerers)))
+            tmp_n_answers = myrand.randint(1, min((abs(n_answers)-1), len(answerers)))
         else:
             tmp_n_answers = n_answers
 
         if limit_male_female == "0:0":
             # shuffle answerers 
             while True:
-                random.shuffle(answerers)
+                myrand.shuffle(answerers)
                 if answerers[0] != interrogator:
                     break
             answerers = answerers[:tmp_n_answers]
@@ -907,31 +959,28 @@ def dialogs_handler(dir_path:str):
 
         for i_a in range(tmp_n_answers):
             print(answerers[i_a], end=" ")
-            err_check = 0
             if i_a != 0:
+                added_q = 0
                 tmp_volume = volume_handler(responder, answerers[i_a])
-                if (random.random() < prob_prompt) == True:
+                if (myrand.random() < prob_prompt) == True:
                     tmp_initquest = search_person(matr_initquest, responder, tmp_volume, j)
                     if tmp_initquest != None:
                         file_names = add_file(file_names, tmp_initquest)
-                        err_check += 1
-                else:
-                    err_check += 1
-                if ((random.random() < prob_question) == True) and ((random.random() < prob_p_q) == True):
+                        added_q += 1
+                if myrand.random() < prob_question == True:
                     tmp_questions = search_person(matr_questions, responder, tmp_volume, j)
                     if tmp_questions != None:
                         file_names = add_file(file_names, tmp_questions)
-                        err_check += 1
-                else:
-                    err_check += 1
+                        added_q += 1
+                if (added_q == 0) and (myrand.random() <= prob_p_q):
+                    tmp_initquest = search_person(matr_initquest, responder, tmp_volume, j)
+                    tmp_questions = search_person(matr_questions, responder, tmp_volume, j)
+                    file_names = add_file(file_names, tmp_initquest)
+                    file_names = add_file(file_names, tmp_questions)
             responder = answerers[i_a]
             tmp_answers = search_person(matr_answers, responder, tmp_volume, j)
             if tmp_answers != None:
                 file_names = add_file(file_names, tmp_answers)
-                err_check += 1
-            if not (err_check == 3 or (i_a == 0 and err_check == 1)):
-                logging.info(f"dialogs_handler \t - ERROR: {matr_answers}, responder: {responder}, j: {j}, i_a: {i_a}, {volume, tmp_volume}")
-                raise Exception(f"Wrong Setting: Can't find the right file responder {responder}, question {j} and volume {tmp_volume}")
         print("")
     logging.info(f"dialogs_handler \t - SUCCESS: {file_names}")
     return file_names
@@ -1031,18 +1080,18 @@ def write_files(OUTPUT:list):
     print("\n COMPLETED! (folder opened)")
 
 if __name__ == '__main__':
-    #try:
-    print("\n\tGeneratore di dialoghi realistici.\n")
-    file_names = dialogs_list(dir_path)
-    '''Create output array [data, person] and silences/pauses values'''
-    silences = silence_generator(file_names)
-    '''create an array of pause_length for each (between) file'''
-    OUTPUT = dialogs_join(file_names, silences)
-    '''Create output array [data, person]: add silences/pauses to output data'''
-    OUTPUT = sounds(file_names, OUTPUT, silences)
-    '''Write files to the hard drive'''
-    write_files(OUTPUT)
-    os.startfile(os.path.join(dir_path, output_folder))
-    #except Exception as e:
-    #    print(f"\n ! ERRORE ! \n\tOperation aborted due to internal error: {e}")
-    #    exit()
+    try:
+        print("\n\tGeneratore di dialoghi realistici.\n")
+        file_names = dialogs_list(dir_path)
+        '''Create output array [data, person] and silences/pauses values'''
+        silences = silence_generator(file_names)
+        '''create an array of pause_length for each (between) file'''
+        OUTPUT = dialogs_join(file_names, silences)
+        '''Create output array [data, person]: add silences/pauses to output data'''
+        OUTPUT = sounds(file_names, OUTPUT, silences)
+        '''Write files to the hard drive'''
+        write_files(OUTPUT)
+        os.startfile(os.path.join(dir_path, output_folder))
+    except Exception as e:
+        print(f"\n ! ERRORE ! \n\tOperation aborted due to internal error: {e}")
+        exit()

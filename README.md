@@ -55,8 +55,8 @@ prob_prompt = 0.5
 # Percentage question presence. 1 always, 0 never
 prob_question = 0.5
 
-# probability an initial question will be followed by a new question
-prob_p_q = 0.8
+# probability there will be at least one question or one prompt, if there isn't any, add both
+prob_p_q = 1
 
 # volume of answers. "ND" if NOT DEFINED, "L" if LOW volume, "H" if HIGH volume
 volume = ND
@@ -96,17 +96,19 @@ name_format = person_gender_volume_type_question
 # if custom_sounds is specified, it will take a sounds list user-generated. See the end for details. The file is always inside the "custom" folder
 # Example: custom_sounds = sounds.json
 
-[pauses] # pauses values (in seconds)
+[pauses] # pause before an answer (in seconds)
 min = 0.7
 max = 2.0
 
+[long pauses] # long pause (before the first answer) values (in seconds)
+min = 0.9
+max = 1.2
 
-[silences] # silences values (in seconds)
+[silences] # silence between a prompt and a question (in seconds)
 min = 0.05
 max = 0.120
 
-
-[long pauses] # long pauses (a pause after an answer) values (in seconds)
+[long silence] # long silence (a pause after an answer) values (in seconds)
 min = 0.9
 max = 1.2
 
@@ -135,7 +137,7 @@ similar_distance = 5
 # length of the fade. (in seconds)
 fade_length = 0
 
-# fade type. There are 2 values: 0 for logarithmic, 1 for linear 
+# fade type. There are 2 values: 0 for logarithmic, 1 for linear, 2 exponential 
 fade_type = 0
 ```
 

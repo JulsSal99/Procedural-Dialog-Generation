@@ -5,10 +5,10 @@
 import logging
 import os
 
-def logger():
-    if not os.path.exists("temp"):
-        os.makedirs("temp")
-    log_file = os.path.join("temp", "logging.log")
+def logger(folder):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    log_file = os.path.join(folder, "logging.log")
     logging.basicConfig(filename=log_file, filemode='w', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
