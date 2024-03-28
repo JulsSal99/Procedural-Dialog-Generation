@@ -121,8 +121,14 @@ class myrand:
 
     def __init__(self):
         self.global_seed_counter = int(time.time() * 7) % 100
+        self.randint_consecutive_count = 0
+        self.randint_last_generated = None
     def seed_changer(self):
-        self.global_seed_counter += 37
+        """This code is completely random, just change the seed to something"""
+        if self.global_seed_counter>50:
+            self.global_seed_counter += 37
+        else:
+            self.global_seed_counter += 27
         if self.global_seed_counter > 99:
             self.global_seed_counter %= 100
     def choice(self, a):
@@ -150,6 +156,15 @@ class myrand:
         random.seed(self.global_seed_counter)
         # probability for 1 is lower
         output = random.randint(a, b)
+        if output == self.randint_last_generated:
+            self.randint_consecutive_count += 1
+            if self.randint_consecutive_count >= 1:
+                self.seed_changer()
+                random.seed(self.global_seed_counter)
+                output = random.randint(a, b)
+        else:
+            self.randint_last_generated = output
+            self.randint_consecutive_count = 0
         if output == a and random.random() < p1:
             return a
         else:
@@ -228,14 +243,27 @@ def add_file(file_names, file):
     return file_names
 
 def find_file(name, path):
-    '''Search for the file by its name with and without the extension'''
-    '''and return the first file found with the exact path of the file.'''
+    '''Search for the file by its name with and without the extension
+    and return the first file found with the exact path of the file.'''
     for root, _, files in os.walk(path):
         for file in files:
             if name in file and (file.lower().endswith(".wav")):
                 logging.info(f"find_file \t\t - SUCCESS.")
                 return os.path.join(root, file)
     raise Exception(f"File {name}.wav not found in {path}")
+
+warning_folder = False
+def check_subfolders(folder_path:str):
+    """checks only the first time if a folder was found"""
+    global warning_folder
+    if warning_folder == False:
+        warning_folder = True
+        '''Check if there is any subfolder in the folder path'''
+        for _, dirs, _ in os.walk(folder_path):
+            if dirs:
+                print("\t WARNING: There are subfolders in this directory. The program does not read inside the subfolders.")
+                logging.info(f"folder_info \t\t - WARNING: The program does not read inside the subfolders: {dirs} .")
+                return
 
 def folder_info(folder_path):
     '''count the number of audio files in a folder and split questions from answers'''
@@ -246,6 +274,7 @@ def folder_info(folder_path):
     count_s = [] #array with all sounds
     q_letters = {} #count questions persons
     a_letters = {} #count answers persons
+    check_subfolders(folder_path)
     for filename in os.listdir(folder_path):
         if filename.endswith('.wav'):
             if len(filename.split('_')) > len(name_format):
@@ -282,9 +311,9 @@ def folder_info(folder_path):
     return max_files, count_a, count_q, count_iq, count_s, a_letters, q_letters
 
 def check_SR_CH(name, rate_temp, channels_temp):
-    '''handle SampleRate and Channels Exceptions'''
-    '''To avoid unuseful file reads,'''
-    '''this function handle only Exceptions'''
+    '''handle SampleRate and Channels Exceptions
+    to avoid unuseful file reads,
+    this function handle only Exceptions'''
     if sample_rate != rate_temp:
         raise Exception(f"\n Audio file n{name} has different sample rate (must be {rate_temp} hz).")
     elif channels != channels_temp:
@@ -389,8 +418,8 @@ def concatenate_fade(audio1, audio2, shape):
     return OUTPUT
 
 def concatenate(data1, data2, pause_length):
-    '''join 2 audio files data1, data2 and adds a pause between them'''
-    '''handles noises or fade-in/fade-out'''
+    '''join 2 audio files data1, data2 and adds a pause between them
+    handles noises or fade-in/fade-out'''
     n_sample_silence = int(sample_rate * pause_length)
     shape = len(data1.shape)
 
@@ -418,12 +447,14 @@ def silence_generator(file_names):
     '''Generate long pause, short pause or silence in seconds'''
     print("\t adding pauses and silences...")
     silences = []
-    length = len(file_names) - 1
     tmp_count_questions = 0
     previous_question = None
-    for i in range(length):
-        first_file = file_names[i]['name']
-        first_type = get_type(first_file)
+    first_file = file_names[0]['name']
+    first_type = get_type(first_file)
+    for i in range(len(file_names) - 1):
+        if i!= 0:
+            first_file = second_file
+            first_type = second_type
         second_file = file_names[i+1]['name']
         second_type = get_type(second_file)
         # count how many questions there are of the same question
@@ -449,18 +480,18 @@ def silence_generator(file_names):
     return silences
 
 def file_complete(file_names, silences):
+    '''add pause and join elements full or empty base on i value'''
     for j in range(len(file_names)):
         if j == 0:
             OUTPUT = file_names[0]['data']
         else:
-            # add pause and join elements full or empty base on i value
             OUTPUT = concatenate(OUTPUT, file_names[j]['data'], silences[j - 1])
     logging.info(f"file_complete \t\t - SUCCESS.")
     return OUTPUT
 
 def data_checker(file_names):
-    '''Read each single audio file and add raw data to file_names'''
-    '''and check sample rate and channels with check_SR_CH'''
+    '''Read each single audio file and add raw data to file_names
+    and check sample rate and channels with check_SR_CH'''
     global channels, sample_rate
     if channels == 0 or sample_rate == 0:
         # Get sample rate
@@ -476,9 +507,9 @@ def data_checker(file_names):
     logging.info(f"data_checker \t\t - SUCCESS.")
 
 def dialogs_join(file_names:list, silences:list):
-    ''' MAIN FUNCTION: create the ending file'''
-    ''' create the class inside file_names and return to concatenate()'''
-    ''' check channels, sample_rate'''
+    ''' MAIN FUNCTION: create the ending file;
+    create the class inside file_names and return to concatenate(). 
+    check channels, sample_rate'''
 
     # Add audio data and check sample rate and channels
     data_checker(file_names)
@@ -524,8 +555,8 @@ def dialogs_join(file_names:list, silences:list):
 # /////////////////////////////////// SOUNDS //////////////////////////////////
 
 def filenames_lengths(file_names, silences):
-    '''Create array for each output file with path, person, start and end'''
-    '''also handle silences, run also if silences is empty'''
+    '''Create array for each output file with path, person, start and end
+    also handle silences, run also if silences is empty'''
     arr = []
     lengh_end, length_start = 0, 0
     i = 0
@@ -542,13 +573,14 @@ def filenames_lengths(file_names, silences):
     logging.info(f"filenames_lengths \t - SUCCESS: {arr}")
     return arr
 
-def check_length(output_length, max_duration, name):
+def check_length(output_length, max_duration, name, threshold=3):
     limit_length = ceil(max_duration*sample_rate)
-    if output_length > limit_length or output_length < limit_length-2:
+    if output_length > limit_length+threshold or output_length < limit_length-threshold:
         logging.info(f"check_length \t\t - ERROR for: {name}")
         raise Exception (f"INTERNAL ERROR: {name} (with length: {output_length}) does not match {limit_length} length")
 
 def handle_s_strangers(sound_files, participants):
+    '''remove all persons that does not speak in the dialogue'''
     for filename in sound_files:
         person = get_person(filename)
         if person not in participants:
@@ -556,7 +588,8 @@ def handle_s_strangers(sound_files, participants):
     return sound_files
 
 def handle_s_quantity(sound_files):
-    '''This code add sound files. The first time it adds all files, then proceed shuffling'''
+    '''This code add sound files. The first time it adds all files,
+    then proceed shuffling'''
     length_before = len(sound_files)
     int_s_quantity = int(s_quantity)
     tmp_sound_files2 = []
@@ -576,10 +609,10 @@ def handle_s_quantity(sound_files):
     logging.info(f"handle_s_quantity \t - SUCCESS: {length_before} -> {len(tmp_sound_files1)}")
     return tmp_sound_files1
 
-def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duration):
-    '''create 2D list of sounds. Each sound has a random position in seconds'''
-    '''There are various values to setup the randomness'''
-    '''note: sound_files != sound_length because the first is the final sound number'''
+def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duration) -> list:
+    '''create 2D list of sounds. Each sound has a random position in seconds.\n
+    There are various values to setup the randomness.\n
+    note: sound_files != sound_length because the first is the final sound number'''
     OUTPUT = []
     tmp_dict = {}
     count_sounds = 0
@@ -634,7 +667,6 @@ def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duratio
                 break
     logging.info(f"handle_sounds \t\t - SUCCESS: arr expanded with {count_sounds} sounds...")
     print(f"\t added {count_sounds} sounds...", end=" ")
-    # ho in uscita un array di array di nome file audio, persona file audio e posizione
     return OUTPUT
 
 def sound_reader(sound_names):
@@ -669,7 +701,7 @@ def sounds_concatenate(audio_no_s, sounds: list, sound_data:dict, max_duration:f
                         sum = concatenate_fade(sum_tmp, sum[end_sound:], shape)
                     elif fade_length == 0:
                         if channels > 1: #stereo
-                            sum_tmp = np.concatenate((sum[:start_sound-1], sound, sum[end_sound-1:]), axis=0)
+                            sum = np.concatenate((sum[:start_sound-1], sound, sum[end_sound-1:]), axis=0)
                         else: #mono
                             sum = np.concatenate((sum_tmp[:start_sound-1], sound, sum[end_sound-1:]))
                     else:
@@ -688,7 +720,10 @@ def sounds_concatenate(audio_no_s, sounds: list, sound_data:dict, max_duration:f
         logging.info(f"sounds_concatenate \t - SUCCESS for: {name}")
     return output
 
-def custom_sounds():
+def custom_sounds() -> tuple:
+    '''if there is a custom sounds setting into the folder, 
+    proceed to read the settings. \n
+    return "list, list"'''
     sound_files = []
     try:
         with open(import_name_s, "r") as file_json:
@@ -760,14 +795,15 @@ def sounds(file_names, audio_no_s, silences):
 
 # /////////////////////////////////// SOUNDS //////////////////////////////////
 
-def participants_lists(q_letters:dict, a_letters:dict):
+def participants_lists(q_letters:dict, a_letters:dict) -> tuple:
+    """Returns a tuple of two list of participants"""
     q_participants = list(q_letters.keys())
     a_participants = list(a_letters.keys())
     logging.info(f"participants_lists \t - SUCCESS")
     return q_participants, a_participants
 
 def list_to_3Dlist(list1:list):
-    # create 3D list for dicts
+    """create 3D list for dicts"""
     arr1 = []
     for filename in list1:
         person = get_person(filename)
@@ -801,6 +837,8 @@ def matr_to_dict1(matr1:list, list1:list):
     return dict1
 
 def volume_handler(p1:str, p2:str):
+    """In a "ND" case, if two people are near each other
+    , set the volume to the min, else max."""
     if volume == "ND":
         if pos_participants.get(p1) == pos_participants.get(p2):
             tmp_volume = "L"
@@ -820,8 +858,8 @@ def merge_arrays(arr1:list, arr2:list):
     return merged_array
 
 def find_gender(participants:list):
-    '''Search for the file by its name with and without the extension'''
-    '''and return the first file found with the exact path of the file.'''
+    '''Search for the file by its name with and without the extension
+    and return the first file found with the exact path of the file.'''
     gen_participants = {}
     path = os.path.join(dir_path, input_folder)
     for _, _, files in os.walk(path):
@@ -837,6 +875,7 @@ def find_gender(participants:list):
     return gen_participants
 
 def handle_M_F(dist_answerers:list, limit_male:int, limit_female:int, tmp_n_answers:int, gen_participants:dict):
+    """Handle the limit_male and limit_female"""
     real_limit_male = 0; real_limit_female = 0
     if gender_fixed_quantity != True: 
         if tmp_n_answers == 1:
@@ -900,9 +939,9 @@ def search_person(matrice:list, person:str, tmp_volume:str, tmp_question:str):
     return None
 
 def dialogs_handler(dir_path:str):
-    '''CREATE FILE_NAMES'''
-    '''Core function of the programm: '''
-    '''creates a dictionary of random file names from your chosen folder'''
+    '''CREATE FILE_NAMES\n\n
+    Core function of the programm: \n
+    creates a dictionary of random file names from your chosen folder'''
     _, count_a, count_q, initial_questions, _, a_letters, q_letters = folder_info(os.path.join(dir_path, input_folder))
     logging.info(f"dialogs_handler - \t - INFO: {count_a, count_q, initial_questions}")
     # create 3D array for questions
@@ -1008,9 +1047,9 @@ def dialogs_handler(dir_path:str):
     return file_names
 
 def dialogs_list(dir_path:str):
-    '''Generates a dict for every file randomly chosen'''
-    '''if a custom settings was found, reads it and returns'''
-    '''call handle_auto_files and saves the dict with every file name into __pycache__'''
+    '''Generates a dict for every file randomly chosen.\n
+    If a custom settings was found, reads it and returns \n
+    call handle_auto_files and saves the dict with every file name into __pycache__'''
     if custom_files_enabler:
         print("\t loading custom audio settings file...")
         return custom_files()
@@ -1026,9 +1065,9 @@ def dialogs_list(dir_path:str):
     return file_names
 
 def custom_files():
-    ''' if custom file is a dict, return the dict, '''
-    ''' if custom file is an array, find the file and check the dictionary'''
-    ''' handle the errors'''
+    ''' if custom file is a dict, return the dict, 
+    if custom file is an array, find the file and check the dictionary.\n
+    Handle the errors'''
     file_names = []
     try:
         with open(import_name1, "r") as file_json:
@@ -1068,23 +1107,13 @@ def custom_files():
     return file_names
 
 def add_list_files(file_list:list, tmp_input_folder:str):
+    """find each file in file_lisr in tmp_input_folder and
+    create a file_names list"""
     for tmp_file in file_list:
         file = find_file(tmp_file, tmp_input_folder)
         file_names = add_file(file_names, file)
     logging.info(f"add_list_files \t\t - SUCCESS")
     return file_names
-
-'''def read_files(file_names:list) -> list:
-    OUTPUT = []
-    for i in file_names:
-        data, rate_temp = sf.read(i)
-        channels_temp = get_channels(data)
-        if rate_temp != sample_rate or channels_temp != channels:
-            raise Exception(f"Could not read these files: sample rate ({rate_temp}) != {sample_rate} or ({channels_temp}) != {channels}")
-        OUTPUT.append([data, get_person(i))
-    logging.info(f"read_files \t\t - SUCCESS: All files loaded")
-    print("\n\t Loaded Files!")
-    return OUTPUT'''
 
 def write_files(OUTPUT:list):
     print("\t writing files into the hard drive...")
