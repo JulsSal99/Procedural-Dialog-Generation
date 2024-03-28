@@ -132,17 +132,16 @@ class myrand:
         if self.global_seed_counter > 99:
             self.global_seed_counter %= 100
     def choice(self, a):
+        """choice: Choose a random element from a non-empty sequence."""
         self.seed_changer()
         random.seed(self.global_seed_counter)
         return random.choice(a)
-    def uniform(self, a, b):
+    def uniform(self, a, b) -> float:
+        """uniform: Get a random number in the range [a, b) or [a, b] 
+        depending on rounding."""
         self.seed_changer()
         random.seed(self.global_seed_counter)
         return random.uniform(a, b)
-    def shuffle(self, a):
-        self.seed_changer()
-        random.seed(self.global_seed_counter)
-        return random.shuffle(a)
     def randint(self, a, b, p1=1):
         """
         Return a random integer N such that a <= N <= b.
@@ -170,6 +169,7 @@ class myrand:
         else:
             return random.randint(a+1, b)
     def random(self):
+        """random: x in the interval [0, 1)."""
         self.seed_changer()
         random.seed(self.global_seed_counter)
         return random.random()
@@ -252,19 +252,6 @@ def find_file(name, path):
                 return os.path.join(root, file)
     raise Exception(f"File {name}.wav not found in {path}")
 
-warning_folder = False
-def check_subfolders(folder_path:str):
-    """checks only the first time if a folder was found"""
-    global warning_folder
-    if warning_folder == False:
-        warning_folder = True
-        '''Check if there is any subfolder in the folder path'''
-        for _, dirs, _ in os.walk(folder_path):
-            if dirs:
-                print("\t WARNING: There are subfolders in this directory. The program does not read inside the subfolders.")
-                logging.info(f"folder_info \t\t - WARNING: The program does not read inside the subfolders: {dirs} .")
-                return
-
 def folder_info(folder_path):
     '''count the number of audio files in a folder and split questions from answers'''
     max_files = 0
@@ -274,27 +261,27 @@ def folder_info(folder_path):
     count_s = [] #array with all sounds
     q_letters = {} #count questions persons
     a_letters = {} #count answers persons
-    check_subfolders(folder_path)
-    for filename in os.listdir(folder_path):
-        if filename.endswith('.wav'):
-            if len(filename.split('_')) > len(name_format):
-                logging.info(f"folder_info \t\t - ABORT: {filename} name format is NOT correct. See manual for correct file naming.\n")
-            else: 
-                file_type = get_type(filename)
-                if file_type == "B":
-                    count_s.append(filename)
-                elif volume == "ND" or get_volume(filename) == volume:
-                    if file_type == "Q":
-                        count_q.append(filename)
-                        person = get_person(filename)
-                        q_letters[person] = get_nquestion(filename)
-                    elif file_type == "A":
-                        count_a.append(filename)
-                        person = get_person(filename)
-                        a_letters[person] = get_nquestion(filename)
-                    elif file_type == "P":
-                        count_iq.append(filename)
-                max_files += 1
+    for root, dirs, files in os.walk(folder_path):
+        for filename in files:
+            if filename.endswith('.wav'):
+                if len(filename.split('_')) > len(name_format):
+                    logging.info(f"folder_info \t\t - ABORT: {filename} name format is NOT correct. See manual for correct file naming.\n")
+                else: 
+                    file_type = get_type(filename)
+                    if file_type == "B":
+                        count_s.append(filename)
+                    elif volume == "ND" or get_volume(filename) == volume:
+                        if file_type == "Q":
+                            count_q.append(filename)
+                            person = get_person(filename)
+                            q_letters[person] = get_nquestion(filename)
+                        elif file_type == "A":
+                            count_a.append(filename)
+                            person = get_person(filename)
+                            a_letters[person] = get_nquestion(filename)
+                        elif file_type == "P":
+                            count_iq.append(filename)
+                    max_files += 1
     if count_q == []:
         logging.info(f"folder_info \t\t - No Initial Questions.")
         raise Exception(f"\n No questions in the folder.")
@@ -594,7 +581,7 @@ def handle_s_quantity(sound_files):
     int_s_quantity = int(s_quantity)
     tmp_sound_files2 = []
     tmp_sound_files1 = []
-    myrand.shuffle(sound_files)
+    random.shuffle(sound_files)
     for i in range(int_s_quantity+1):
         if i == (int_s_quantity):
             sound_files = sound_files[:int(len(sound_files)*(s_quantity%1))]
@@ -604,7 +591,7 @@ def handle_s_quantity(sound_files):
             # run only on elements that aren't the first or the last element
             for _ in range(len(sound_files)):
                 tmp_sound_files2.append(myrand.choice(sound_files))
-    myrand.shuffle(tmp_sound_files2)
+    random.shuffle(tmp_sound_files2)
     tmp_sound_files1 += tmp_sound_files2
     logging.info(f"handle_s_quantity \t - SUCCESS: {length_before} -> {len(tmp_sound_files1)}")
     return tmp_sound_files1
@@ -674,7 +661,7 @@ def sound_reader(sound_names):
     sounds = {}
     length_data = {}
     for file in sound_names:
-        path_file = os.path.join(dir_path, input_folder, file)
+        path_file = find_file(file, os.path.join(dir_path, input_folder))
         data = sf.read(path_file)[0]
         sounds[file] = data
         length_data[file] = raw_to_seconds(data)
@@ -808,7 +795,8 @@ def list_to_3Dlist(list1:list):
     for filename in list1:
         person = get_person(filename)
         n_question = get_nquestion(filename)
-        arr1.append([os.path.join(dir_path, input_folder+"/"+filename), person, n_question])
+        real_path = find_file(filename, os.path.join(dir_path, input_folder))
+        arr1.append([real_path, person, n_question])
     logging.info(f"list_to_3Dlist \t\t - SUCCESS")
     return arr1
 
@@ -818,7 +806,7 @@ def questions_shuffler(matr1:list, value1:list):
         if n not in list1:
             list1.append(n)
     if random_q_order:
-        myrand.shuffle(list1)
+        random.shuffle(list1)
     if value1 == 0:
         list1 = list1[:(myrand.randint(1,len(list1), 0.5))]
     elif value1 < 0:
@@ -911,9 +899,9 @@ def handle_M_F(dist_answerers:list, limit_male:int, limit_female:int, tmp_n_answ
     # create answerers array
     answerers = []
     while True:
-        myrand.shuffle(dist_answerers)
+        random.shuffle(dist_answerers)
         M_F_selector = ["M", "F"]
-        myrand.shuffle(M_F_selector)
+        random.shuffle(M_F_selector)
         for _ in range(2):
             if len(dist_answerers) == 0 or len(answerers) == tmp_n_answers:
                 return answerers
@@ -935,7 +923,7 @@ def search_person(matrice:list, person:str, tmp_volume:str, tmp_question:str):
             if volume != "ND" or (get_volume(i[0]) == tmp_volume):                
                 logging.info(f"search_person \t - SUCCESS")
                 return i[0]
-    logging.info(f"search_person \t - ERROR: No found file")
+    logging.info(f"search_person \t - ERROR: No found file n:{tmp_question}, person:{person}, vol:{tmp_volume}")
     return None
 
 def dialogs_handler(dir_path:str):
@@ -980,6 +968,7 @@ def dialogs_handler(dir_path:str):
 
     tmp_n_answers = 0
     file_names = []
+    first_question_enabler = False
     for j in list_questions:
         # choose random interrogator
         interrogator = myrand.choice(q_participants)
@@ -997,7 +986,7 @@ def dialogs_handler(dir_path:str):
         if limit_male_female == "0:0":
             # shuffle answerers 
             while True:
-                myrand.shuffle(answerers)
+                random.shuffle(answerers)
                 if answerers[0] != interrogator:
                     break
             answerers = answerers[:tmp_n_answers]
@@ -1013,8 +1002,15 @@ def dialogs_handler(dir_path:str):
 
         # add first person to ask X each question
         tmp_questions = search_person(matr_questions, interrogator, tmp_volume, j)
-        if tmp_questions != None and first_question:
-            file_names = add_file(file_names, tmp_questions)
+        if tmp_questions != None:
+            if first_question == True:
+                file_names = add_file(file_names, tmp_questions)
+            elif first_question == False:
+                if first_question_enabler == False:
+                    first_question_enabler = True
+                else:
+                    file_names = add_file(file_names, tmp_questions)
+                
         
         print(f"with n{tmp_n_answers} answers from:", end=" ")
 
@@ -1131,7 +1127,7 @@ def write_files(OUTPUT:list):
     print("\n COMPLETED! (folder opened)")
 
 if __name__ == '__main__':
-    try:
+    #try:
         print("\n\tGeneratore di dialoghi realistici.\n")
         file_names = dialogs_list(dir_path)
         '''Create output array [data, person] and silences/pauses values'''
@@ -1143,6 +1139,6 @@ if __name__ == '__main__':
         '''Write files to the hard drive'''
         write_files(OUTPUT)
         os.startfile(os.path.join(dir_path, output_folder))
-    except Exception as e:
-        print(f"\n ! ERRORE ! \n\tOperation aborted due to internal error: {e}")
-        exit()
+    #except Exception as e:
+    #    print(f"\n ! ERRORE ! \n\tOperation aborted due to internal error: {e}")
+    #    exit()

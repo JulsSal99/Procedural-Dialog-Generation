@@ -4,9 +4,12 @@ import importlib
 import subprocess
 
 def install(package):
+    '''install package using pip install'''
     subprocess.check_call(["pip", "install", package])
 
 def install_libraries():
+    '''try installing all required libraries, if not installed
+    ask the user if he want to install all libraries'''
     try:
         importlib.import_module('os')
         importlib.import_module('numpy')
