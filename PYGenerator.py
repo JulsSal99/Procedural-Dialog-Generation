@@ -592,8 +592,10 @@ def dialogs_join(file_names:list, silences:list):
         file_names[i]['length'] = round(len(audio_data[file_names[i]['name']]))
     print(" creating data", end="")
     OUTPUT2 = []
-    OUTPUT = file_complete(file_names, silences, audio_data)
-    OUTPUT2.append([OUTPUT, "COMPLETE"])
+    # ALTERNATIVE SUM GENERATOR
+    if noise_file != "":
+        OUTPUT = file_complete(file_names, silences, audio_data)
+        OUTPUT2.append([OUTPUT, "COMPLETE"])
     OUTPUT = set()
     len_file_names = len(file_names)
     # i è l'elemento da stampare con i dati, mentre j è l'elemento attuale
@@ -636,6 +638,14 @@ def dialogs_join(file_names:list, silences:list):
                         OUTPUT = concatenate(OUTPUT, file_silence, silences[j - 1])
             OUTPUT2.append([OUTPUT, print_name])
             logging.info(f"dialogs_join \t - SUCCESS for: {print_name}")
+    for h in OUTPUT2:
+        if h[1] != "COMPLETE":
+            if 'total_data' not in locals():
+                total_data = h[0]
+            else:
+                total_data = np.add(total_data, h[0])
+    if noise_file == "":
+        OUTPUT2.append([total_data, "COMPLETE"])
     print()
     logging.info(f"filenames_lengths \t - SUCCESS")
     #print(sys.getsizeof(OUTPUT) / (1024 * 1024))
@@ -785,7 +795,7 @@ def sound_reader(sound_names):
         data = sf.read(path_file)[0]
         sounds[file] = data
         length_data[file] = raw_to_seconds(data)
-    logging.info(f"sound_reader \t - SUCCESS")
+    logging.info(f"sound_reader \t - SUCCESS: {sounds}, {length_data}")
     return sounds, length_data
 
 def sounds_concatenate(audio_no_s, sounds: list, sound_data:dict, max_duration:float):
