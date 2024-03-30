@@ -49,6 +49,9 @@ n_questions = 0
 # number of answers. positive number, negative act as a threshold for random, 0 is just random
 n_answers = 0
 
+#choose n random participants and keep them till the end of the code. THIS iS A BETA FEATURE
+n_participants = 0
+
 # Percentage initial question presence. 1 always, 0 never
 prob_prompt = 0.5
 
@@ -120,7 +123,7 @@ s_quantity = 1
 # minimum distance between the start of one sound and another. This DOES not consider answers, only sounds (in seconds)
 min_s_distance = 5
 
-# redundancy before and after to avoid overlap sounds (in seconds)
+# redundancy before and after to avoid overlap sounds from the same participant (in seconds)
 cut_redundancy = 1.5
 
 # you can also specify how loud a sound should be if you want to
@@ -131,6 +134,9 @@ cycle_limit = 10
 
 # if you don't want the same sound too close to another, just add this variable (in seconds)
 similar_distance = 5
+
+# if you want to specify how close a sound can be to a counjunction between two sounds. 0 disable this variable
+near_conjunction = 2
 
 
 [fade] # apply fade in- and fade-out to each sample

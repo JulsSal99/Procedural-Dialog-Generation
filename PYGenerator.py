@@ -46,6 +46,7 @@ config.read('PYgenerator.cfg')
 random_q_order = config.getboolean('global', 'random_q_order', fallback=True)
 n_questions = config.getint('global', 'n_questions', fallback=0)
 n_answers = config.getint('global', 'n_answers', fallback=0)
+n_participants = config.getint('global', 'n_participants', fallback=0)
 prob_question = config.getfloat('global', 'prob_question', fallback=0.5)
 prob_prompt = config.getfloat('global', 'prob_prompt', fallback=0.5)
 prob_p_q = config.getfloat('global', 'prob_p_q', fallback=1)
@@ -84,6 +85,7 @@ cut_redundancy = config.getfloat('sounds', 'cut_redundancy', fallback=1.5)
 sound_amp_fact = config.getfloat('sounds', 'sound_amp_fact', fallback=1)
 cycle_limit = config.getint('sounds', 'cycle_limit', fallback=10)
 closest_distance = config.getfloat('sounds', 'similar_distance', fallback=5)
+on_conjunction = config.getfloat('sounds', 'near_conjunction', fallback=2)
 # data
 sample_rate = config.getint('data', 'sample_rate', fallback=0)
 channels = config.getint('data', 'sample_rate', fallback=0)
@@ -92,7 +94,7 @@ save_name1 = os.path.join(temp_folder, "output_files.json")
 save_name_s = os.path.join(temp_folder, "sounds.json")
 pos_participants = {}
 
-''' some checks before the program starts... '''
+''' some checks before the program starts '''
 if not config.has_option('files', 'custom_path'): custom_files_enabler = False
 else: custom_files_enabler = True
 if not config.has_option('files', 'custom_sounds'): custom_sounds_enabler = False
@@ -253,7 +255,8 @@ def find_file(name, path):
     raise Exception(f"File {name}.wav not found in {path}")
 
 def folder_info(folder_path):
-    '''count the number of audio files in a folder and split questions from answers'''
+    '''count the number of audio files in a folder and split questions 
+    from answers, sounds and prompts '''
     max_files = 0
     count_q = [] #array with all questions
     count_a = [] #array with all answers
@@ -265,7 +268,7 @@ def folder_info(folder_path):
         for filename in files:
             if filename.endswith('.wav'):
                 if len(filename.split('_')) > len(name_format):
-                    logging.info(f"folder_info \t\t - ABORT: {filename} name format is NOT correct. See manual for correct file naming.\n")
+                    logging.info(f"folder_info \t\t - WARNING: {filename} name format is NOT correct. See manual for correct file naming.\n")
                 else: 
                     file_type = get_type(filename)
                     if file_type == "B":
@@ -295,7 +298,81 @@ def folder_info(folder_path):
         logging.info(f"folder_info \t\t - Only one participant.")
         raise Exception(f"\n Only one participant!!!")
     logging.info(f"folder_info \t\t - SUCCESS: max_files: {max_files}, \tcount_a: {count_a}, \tcount_q: {count_q}, \tcount_iq: {count_iq}, \tcount_s: {count_s}, \ta_letters: {a_letters}, \tq_letters: {q_letters}")
+    if n_participants != 0:
+        a_letters, q_letters = participants_handler(a_letters, q_letters)
+        count_a = filter_participants(count_a, a_letters)
+        count_q = filter_participants(count_q, q_letters)
+        initial_questions = filter_participants(initial_questions, q_letters)
     return max_files, count_a, count_q, count_iq, count_s, a_letters, q_letters
+
+def participants_handler(a_letters, q_letters):
+    '''if n_participants was defined, choose 2 participants'''
+    a_participants = {}
+    q_participants = {}
+    a_list = list(a_letters.keys())
+    q_list = list(q_letters.keys())
+    array = []
+    if n_participants == 1:
+        raise Exception("n_participants too low")
+    elif n_participants == 2:
+        tmp_cycle_limit = 0
+        key_a = random.choice(a_list)
+        a_participants[key_a] = a_letters.pop(key_a)
+        array.append(key_a)
+        while True:
+            key = random.choice(q_list)
+            if key_a != key:
+                break
+            elif tmp_cycle_limit > 10:
+                raise Exception('error with n_participants')
+            tmp_cycle_limit += 1
+        array.append(key)
+        q_participants[key] = q_letters.pop(key)
+    else:
+        array = []
+        for i in range(n_participants):
+            if i % 2 == 0:
+                key = random.choice(a_list)
+                a_list.remove(key)
+                if key not in array:
+                    array.append(key)
+                    if len(array) > n_participants:
+                        break
+                a_participants[key] = a_letters.pop(key)
+            else:
+                key = random.choice(q_list)
+                q_list.remove(key)
+                if key not in array:
+                    array.append(key)
+                    if len(array) > n_participants:
+                        break
+                q_participants[key] = q_letters.pop(key)
+    for i in array:
+        if i in a_letters.keys():
+            a_participants[i] = a_letters.pop(i)
+        if i in q_letters.keys():
+            q_participants[i] = q_letters.pop(i)
+    return a_participants, q_participants
+
+def filter_participants(tmp_count, tmp_participants):
+    filtered_count = [filename for filename in tmp_count if get_person(filename) in tmp_participants]
+    return filtered_count
+
+def sounds_info(folder_path):
+    '''count the number of sound files in a folder and split 
+    questions from answers.\n
+    It is a better optimized folder_info version for sounds files.'''
+    count_s = []
+    for _, _, files in os.walk(folder_path):
+        for filename in files:
+            if filename.endswith('.wav'):
+                if len(filename.split('_')) > len(name_format):
+                    logging.info(f"sounds_info \t\t - WARNING: {filename} name format is NOT correct. See manual for correct file naming.\n")
+                else: 
+                    file_type = get_type(filename)
+                    if file_type == "B":
+                        count_s.append(filename)
+    return count_s
 
 def check_SR_CH(name, rate_temp, channels_temp):
     '''handle SampleRate and Channels Exceptions
@@ -432,13 +509,18 @@ def concatenate(data1, data2, pause_length):
 
 def silence_generator(file_names):
     '''Generate long pause, short pause or silence in seconds'''
-    print("\t adding pauses and silences...")
+    print("\t adding pauses and silences", end="")
     silences = []
     tmp_count_questions = 0
     previous_question = None
     first_file = file_names[0]['name']
     first_type = get_type(first_file)
+    
+    point_counter = 0
+    point_length = len(file_names)
     for i in range(len(file_names) - 1):
+        point_counter += 1
+        if point_counter % (point_length // 3) == 0: print(".", end="")
         if i!= 0:
             first_file = second_file
             first_type = second_type
@@ -464,6 +546,7 @@ def silence_generator(file_names):
             pause_length = myrand.uniform(ls_min, ls_max)  # seconds
         silences.append(pause_length)
     logging.info(f"silence_generator \t - SUCCESS.")
+    print()
     return silences
 
 def file_complete(file_names, silences, audio_data):
@@ -478,9 +561,14 @@ def file_complete(file_names, silences, audio_data):
     return OUTPUT
 
 def file_names_reader(file_names):
+    print("\t reading audio data", end="")
     global channels, sample_rate
     file_data_dict = {}
+    point_counter = 0
+    point_length = len(file_names)
     for item in file_names:
+        point_counter += 1
+        if point_counter % (point_length // 3) == 0: print(".", end="")
         file_path = item['path']
         file_name = item['name']
         temp_data, temp_rate = sf.read(file_path)
@@ -499,18 +587,21 @@ def dialogs_join(file_names:list, silences:list):
     check channels, sample_rate'''
 
     # Add audio data and check sample rate and channels
-    print("\t reading audio data.", end = " ")
     audio_data = file_names_reader(file_names)
     for i in range(len(file_names)):
         file_names[i]['length'] = round(len(audio_data[file_names[i]['name']]))
-    print("\t creating data", end="")
+    print(" creating data", end="")
     OUTPUT2 = []
     OUTPUT = file_complete(file_names, silences, audio_data)
     OUTPUT2.append([OUTPUT, "COMPLETE"])
     OUTPUT = set()
     len_file_names = len(file_names)
     # i è l'elemento da stampare con i dati, mentre j è l'elemento attuale
+    point_counter = 0
+    point_length = len_file_names
     for i in range(len_file_names):
+        point_counter += 1
+        if point_counter % (point_length // 3) == 0: print(".", end="")
         print_person = file_names[i]['person']
         if not file_names[i]['duplicated']:
             print_name = print_person
@@ -545,7 +636,6 @@ def dialogs_join(file_names:list, silences:list):
                         OUTPUT = concatenate(OUTPUT, file_silence, silences[j - 1])
             OUTPUT2.append([OUTPUT, print_name])
             logging.info(f"dialogs_join \t - SUCCESS for: {print_name}")
-            print(".", end="")
     print()
     logging.info(f"filenames_lengths \t - SUCCESS")
     #print(sys.getsizeof(OUTPUT) / (1024 * 1024))
@@ -609,6 +699,22 @@ def handle_s_quantity(sound_files):
     logging.info(f"handle_s_quantity \t - SUCCESS: {length_before} -> {len(tmp_sound_files1)}")
     return tmp_sound_files1
 
+def closest_calculator(tmp_dict, delay):
+    """search which sound is the nearest.
+    if a sound is too near another, return None, None touple"""
+    closest_key = ""
+    closest_value = 24840000
+    final_value = 0
+    for key, value in tmp_dict.items():
+        distance = abs(value-delay)
+        if distance < min_s_distance:
+            return value, None
+        if distance < closest_value:
+            closest_value = distance
+            final_value = value
+            closest_key = key
+    return final_value, closest_key
+
 def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duration) -> list:
     '''create 2D list of sounds. Each sound has a random position in seconds.\n
     There are various values to setup the randomness.\n
@@ -622,42 +728,43 @@ def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duratio
         person = get_person(filename)
         while True:
             correct = True
-            closest_key = ""
-            closest_value = 248400
             delay = myrand.uniform(0, (max_duration-cut_redundancy-sound_length[filename]))
             if tmp_limit <= cycle_limit:
-                # check if a sound is near another
-                for key, value in tmp_dict.items():
-                    distance = abs(value-delay)
-                    if distance < min_s_distance:
-                        correct = False
-                        tmp_limit += 1
-                        logging.info(f"handle_sounds \t\t - INFO: tmp_limit: {tmp_limit}: sound too close to another")
-                        break
-                    if distance < closest_value:
-                        closest_value = distance
-                        closest_key = key
+                # check if a sound is near another, also search which sound is the nearest
+                closest_value, closest_key = closest_calculator(tmp_dict, delay)
+                if closest_key is None:
+                    tmp_limit += 1
+                    correct = False
+                    logging.info(f"handle_sounds \t\t - INFO: tmp_limit: {tmp_limit}: {int(delay//60)}:{int(delay%60)} sound too close to another {int(closest_value//60)}:{int(closest_value%60)}")
                 # check if a sound is near another same sound
                 if correct != False:
-                    if closest_key == filename and closest_value < closest_distance:
+                    if closest_key == filename and abs(closest_value-delay) < closest_distance:
                         correct = False
                         tmp_limit += 1
-                        logging.info(f"handle_sounds \t\t - INFO: tmp_limit: {tmp_limit}: same sound near another")
+                        logging.info(f"handle_sounds \t\t - INFO: tmp_limit: {tmp_limit}: {int(delay//60)}:{int(delay%60)} same sound near another {int(closest_value//60)}:{int(closest_value%60)}")
                         break
                 # check if the sound is inside an empty area of your person
                 if correct != False:
                     for i_a in range(len(audio_length)):
                         delay_end = delay + float(sound_length[filename])
-                        start_NO_zone = audio_length[i_a][2]-float(cut_redundancy)
-                        end_NO_zone = audio_length[i_a][3]+float(cut_redundancy)
-                        if audio_length[i_a][1] == person and delay > (start_NO_zone) and delay_end < (end_NO_zone):
+                        start_NO_real = audio_length[i_a][2]
+                        end_NO_real = audio_length[i_a][3]
+                        start_NO_zone = start_NO_real-float(cut_redundancy)
+                        end_NO_zone = end_NO_real+float(cut_redundancy)
+                        if on_conjunction != 0:
+                            if (abs(delay - start_NO_zone) < on_conjunction and abs(delay_end - start_NO_zone) < on_conjunction) or (abs(delay - end_NO_zone) < on_conjunction and abs(delay_end - end_NO_zone) < on_conjunction):
+                                correct = False
+                                tmp_limit += 1
+                                logging.info(f"handle_sounds \t\t - INFO: tmp_limit: {tmp_limit}: {int(delay//60)}:{int(delay%60)} sound is too close to a conjunction between sounds ({int(audio_length[i_a][3]//60)}:{int(audio_length[i_a][3]%60)})")
+                                break
+                        if audio_length[i_a][1] == person and delay > (start_NO_zone) < delay and delay_end < (end_NO_zone):
                             correct = False
                             tmp_limit += 1
-                            logging.info(f"handle_sounds \t\t - INFO: tmp_limit: {tmp_limit}: sound is inside an audio of the same person")
+                            logging.info(f"handle_sounds \t\t - INFO: tmp_limit: {tmp_limit}: {int(delay//60)}:{int(delay%60)} sound is inside an audio of the same person")
                             break
             else:
                 logging.info(f"handle_sounds \t\t - WARNING: no more space for new sounds with cycle repeated {tmp_limit}. Added {len(OUTPUT)} sounds")
-                print(f"\t added {count_sounds} sounds...", end =" ")
+                print(f" added {count_sounds} sounds...", end ="")
                 return OUTPUT
             if correct:
                 tmp_dict[filename] = delay
@@ -665,7 +772,7 @@ def handle_sounds(sound_files, audio_length:list, sound_length:dict, max_duratio
                 logging.info(f"handle_sounds \t\t - NOTE: appended {filename} on position {delay} with cycle repeated {tmp_limit}")
                 tmp_limit = 0
                 break
-    logging.info(f"handle_sounds \t\t - SUCCESS: arr expanded with {count_sounds} sounds...")
+    logging.info(f"handle_sounds \t\t - SUCCESS: arr expanded with {count_sounds} sounds.")
     print(f"\t added {count_sounds} sounds...", end=" ")
     return OUTPUT
 
@@ -682,8 +789,13 @@ def sound_reader(sound_names):
     return sounds, length_data
 
 def sounds_concatenate(audio_no_s, sounds: list, sound_data:dict, max_duration:float):
+    print(f" joining dialogue", end="")
     output = []
+    point_counter = 0
+    point_length = len(audio_no_s)
     for i in audio_no_s:
+        point_counter += 1
+        if point_counter % (point_length // 3) == 0: print(".", end="")
         name = i[1]
         if name != "COMPLETE":
             total = i[0]
@@ -717,6 +829,7 @@ def sounds_concatenate(audio_no_s, sounds: list, sound_data:dict, max_duration:f
                 total_data = np.add(total_data, h[0])
     output.append([total_data, "COMPLETE"])
     logging.info(f"sounds_concatenate \t - SUCCESS for: {name}")
+    print()
     return output
 
 def custom_sounds() -> tuple:
@@ -775,9 +888,9 @@ def sounds(file_names, audio_no_s, silences):
         logging.info(f"sounds \t\t\t - ABORT: s_quantity = 0")
         return audio_no_s
     else:
-        _, _, _, _, sound_files, _, _ = folder_info(os.path.join(dir_path, input_folder))
+        sound_files = sounds_info(os.path.join(dir_path, input_folder))
         # -1 takes the last file (COMPLETE)
-        print("\t adding new sounds...", end=" ")
+        print("\t adding new sounds...", end="")
         tmp_participants = []
         for i in audio_no_s:
             tmp_participants.append(i[1])
@@ -789,7 +902,6 @@ def sounds(file_names, audio_no_s, silences):
         sounds = handle_sounds(sound_files, audio_length, sound_length, max_duration)
         with open((save_name_s), 'w') as file:
             json.dump(sounds, file)
-    print(f"\t joining dialogue...")
     return sounds_concatenate(audio_no_s, sounds, sound_data, max_duration)
 
 # /////////////////////////////////// SOUNDS //////////////////////////////////
@@ -812,20 +924,20 @@ def list_to_3Dlist(list1:list):
     logging.info(f"list_to_3Dlist \t\t - SUCCESS")
     return arr1
 
-def questions_shuffler(matr1:list, value1:list):
+def questions_shuffler(matr1:list):
     list1 = []
     for _, _, n in matr1:
         if n not in list1:
             list1.append(n)
     if random_q_order:
         random.shuffle(list1)
-    if value1 == 0:
+    if n_questions == 0:
         list1 = list1[:(myrand.randint(1,len(list1), 0.5))]
-    elif value1 < 0:
-        length = myrand.randint(1,abs(int(value1)), 0.3)
+    elif n_questions < 0:
+        length = myrand.randint(1,abs(int(n_questions)), 0.3)
         list1 = list1[:(length)]
     else:
-        list1 = list1[:(value1-1)]
+        list1 = list1[:(n_questions)]
     return list1
 
 def matr_to_dict1(matr1:list, list1:list):
@@ -879,6 +991,7 @@ def handle_M_F(dist_answerers:list, limit_male:int, limit_female:int, tmp_n_answ
     real_limit_male = 0; real_limit_female = 0
     if gender_fixed_quantity != True: 
         if tmp_n_answers == 1:
+            logging.info(f"handle_M_F \t - SUCCESS")
             return [myrand.choice(dist_answerers)]
         if limit_male != 1:
             limit_male = int(float(tmp_n_answers) / (limit_male + limit_female) * limit_male)
@@ -916,8 +1029,10 @@ def handle_M_F(dist_answerers:list, limit_male:int, limit_female:int, tmp_n_answ
         random.shuffle(M_F_selector)
         for _ in range(2):
             if len(dist_answerers) == 0 or len(answerers) == tmp_n_answers:
+                logging.info(f"handle_M_F \t - SUCCESS")
                 return answerers
             if limit_male == 0 and limit_female == 0:
+                logging.info(f"handle_M_F \t - SUCCESS")
                 return answerers
             if (M_F_selector[0] == "M" and limit_male > 0) or (M_F_selector[0] == "F" and limit_female > 0) :
                 for i in range(len(dist_answerers)):
@@ -975,7 +1090,7 @@ def dialogs_handler(dir_path:str):
         gen_participants = find_gender(participants)
         
     # max number of participants to answers
-    list_questions = questions_shuffler(matr_questions, n_questions)
+    list_questions = questions_shuffler(matr_questions)
     dict_answers = matr_to_dict1(matr_questions, list_questions)
 
     tmp_n_answers = 0
@@ -984,8 +1099,7 @@ def dialogs_handler(dir_path:str):
     for j in list_questions:
         # choose random interrogator
         interrogator = myrand.choice(q_participants)
-        answerers = dict_answers.get(j)
-        answerers = list(set(answerers))
+        answerers = list(set(dict_answers.get(j)))
 
         # handle number of answers also if negative 
         if n_answers == 0:
@@ -995,6 +1109,9 @@ def dialogs_handler(dir_path:str):
         else:
             tmp_n_answers = n_answers
 
+        tmp_cycle_limit = 10
+        prev_answerers = answerers
+        count_cycle_limit = 1
         # shuffle answerers 
         if limit_male_female == "0:0":
             answerers = answerers[:tmp_n_answers]
@@ -1005,8 +1122,13 @@ def dialogs_handler(dir_path:str):
                 random.shuffle(answerers)
                 answerers = handle_M_F(answerers, limit_male, limit_female, tmp_n_answers, gen_participants)
                 if answerers[0] != interrogator:
+                    tmp_n_answers = len(answerers)
                     break
-                tmp_n_answers = len(answerers)
+                elif count_cycle_limit > tmp_cycle_limit:
+                    raise Exception(f"Internal Error: answerers: {answerers}, interrogator: {interrogator}")
+                else:
+                    count_cycle_limit +=1
+                    answerers = prev_answerers
         
         print(f"\t chosen question n: {j}", end=" ")
 
@@ -1090,7 +1212,7 @@ def custom_files():
                     if len(data) > 1 and len(data) <= max_participants:
                         file_names = add_list_files(data, tmp_input_folder)
                     else:
-                        raise Exception('file JSON does not contain a valid array. Format should be ["a.wav","b.wav",...]')
+                        raise Exception('file JSON does not contain a valid array. Format should be ["a.wav","b.wav",..]')
                 else: 
                     raise Exception('file JSON does not contain a valid list')
             else: 
@@ -1123,11 +1245,15 @@ def add_list_files(file_list:list, tmp_input_folder:str):
     return file_names
 
 def write_files(OUTPUT:list):
-    print("\t writing files into the hard drive...")
+    print("\t writing files into the hard drive", end="")
     output_path = os.path.join(dir_path, output_folder)
     if not os.path.exists(output_path):
         os.makedirs(output_path)
+    point_counter = 0
+    point_length = len(OUTPUT)
     for i in OUTPUT:
+        point_counter += 1
+        if point_counter % (point_length // 3) == 0: print(".", end="")
         if volume == "ND" and i[1] in pos_participants:
             write_name = os.path.join(output_path, f'merged{i[1]}_{pos_participants[i[1]]}.wav')
         else:
@@ -1135,7 +1261,8 @@ def write_files(OUTPUT:list):
         sf.write(write_name, i[0], sample_rate)
         logging.info(f"write_files \t\t - SUCCESS: Created {write_name}")
     logging.info(f"write_files \t\t - SUCCESS: All files Saved")
-    print("\n COMPLETED! (folder opened)")
+    print()
+    print("\n\tCOMPLETED! (folder opened)")
 
 if __name__ == '__main__':
     #try:
