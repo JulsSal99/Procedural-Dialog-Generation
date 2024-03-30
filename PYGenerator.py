@@ -302,7 +302,7 @@ def folder_info(folder_path):
         a_letters, q_letters = participants_handler(a_letters, q_letters)
         count_a = filter_participants(count_a, a_letters)
         count_q = filter_participants(count_q, q_letters)
-        initial_questions = filter_participants(initial_questions, q_letters)
+        count_iq = filter_participants(count_iq, q_letters)
     return max_files, count_a, count_q, count_iq, count_s, a_letters, q_letters
 
 def participants_handler(a_letters, q_letters):
