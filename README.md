@@ -68,7 +68,7 @@ volume = ND
 first_question = True
 
 
-[gender] # Ratio number of male and female 
+[sex] # Ratio number of male and female 
 # if you want the output quantity to be this exact value, set True. Warning: it can cause errors if here are not enough participants in the folder
 fixed_quantity = False
 
@@ -78,7 +78,7 @@ male_female_ratio = 0:0
 
 [files] # configuration/input/output files
 # file name format: *IDname_SESSO_volume_tipo_ndomanda". eg. 01_M_H_A_01 The number identifies the position
-name_format = person_gender_volume_type_question
+name_format = person_sex_volume_type_question
 
 # master folder. Should NOT end with a "/"
 # Example: dir_path = C:/Users/giuli/Music/Edit
@@ -93,19 +93,19 @@ name_format = person_gender_volume_type_question
 # output files folder inside master folder
 # Example: output_folder = OUTPUT 
 
-# if custom_file is specified, it will take a dialogue user-generated order. See the end for details. The file is always inside the "custom" folder
+# if custom_path is specified, it will take a dialogue user-generated order. See the end for details. The file is always inside the "custom" folder
 # Example: custom_path = output_files.json
 
-# if custom_sounds is specified, it will take a sounds list user-generated. See the end for details. The file is always inside the "custom" folder
-# Example: custom_sounds = sounds.json
+# if custom_burst is specified, it will take a burst list user-generated. See the end for details. The file is always inside the "custom" folder
+# Example: custom_burst = burst.json
 
 [pauses] # pause before an answer (in seconds)
-min = 0.7
-max = 2.0
+min = 0.5
+max = 1.0
 
 [long pauses] # long pause (before the first answer) values (in seconds)
-min = 0.9
-max = 1.2
+min = 0.5
+max = 1.0
 
 [silences] # silence between a prompt and a question (in seconds)
 min = 0.05
@@ -116,14 +116,14 @@ min = 0.9
 max = 1.2
 
 
-[sounds]
-# This float value goes from 0 to 1. If 1, uses all sounds, if 0, none
-s_quantity = 1
+[burst]
+# This float value goes from 0 to 1. If 1, uses all burst, if 0, none
+b_quantity = 1
 
-# minimum distance between the start of one sound and another. This DOES not consider answers, only sounds (in seconds)
-min_s_distance = 5
+# minimum distance between the start of one sound and another. This DOES not consider answers, only burst (in seconds)
+min_b_distance = 5
 
-# redundancy before and after to avoid overlap sounds from the same participant (in seconds)
+# redundancy before and after to avoid overlap burst from the same participant (in seconds)
 cut_redundancy = 1.5
 
 # you can also specify how loud a sound should be if you want to
@@ -135,7 +135,7 @@ cycle_limit = 10
 # if you don't want the same sound too close to another, just add this variable (in seconds)
 similar_distance = 5
 
-# if you want to specify how close a sound can be to a counjunction between two sounds. 0 disable this variable
+# if you want to specify how close a sound can be to a counjunction between two burst. 0 disable this variable
 near_conjunction = 2
 
 
@@ -162,7 +162,7 @@ Inside that file, format should be:
  {"01": 1, "02": 1, "03": 1, "04": 0}
 ```
 
-custom_sounds file (position is inside the "__pycache__" folder) shoud have one of these formats:
+custom_burst file (position is inside the "__pycache__" folder) shoud have one of these formats:
 ```json
 ["03_M_Q_01_L.wav", "01_M_A_01_L"]
 ```

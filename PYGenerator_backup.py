@@ -920,7 +920,7 @@ def participants_lists(q_letters:dict, a_letters:dict) -> tuple:
     """Returns a tuple of two list of participants"""
     q_participants = list(q_letters.keys())
     a_participants = list(a_letters.keys())
-    logging.info(f"participants_lists \t - SUCCESS: {q_participants}, {a_participants}")
+    logging.info(f"participants_lists \t - SUCCESS")
     return q_participants, a_participants
 
 def list_to_3Dlist(list1:list):
@@ -931,7 +931,7 @@ def list_to_3Dlist(list1:list):
         n_question = get_nquestion(filename)
         real_path = find_file(filename, os.path.join(dir_path, input_folder))
         arr1.append([real_path, person, n_question])
-    logging.info(f"list_to_3Dlist\t\t - SUCCESS")
+    logging.info(f"list_to_3Dlist \t\t - SUCCESS")
     return arr1
 
 def questions_shuffler(matr1:list):
@@ -977,7 +977,6 @@ def merge_arrays(arr1:list, arr2:list):
     for item in arr2:
         if item not in merged_array:
             merged_array.append(item)
-    logging.info(f"merge_arrays\t\t - SUCCESS: length:{len(merged_array)}")
     return merged_array
 
 def find_gender(participants:list):
@@ -1102,9 +1101,7 @@ def dialogs_handler(dir_path:str):
         
     # max number of participants to answers
     list_questions = questions_shuffler(matr_questions)
-    logging.info(f"dialogs_handler \t - INFO: list_questions: {list_questions}")
     dict_answers = matr_to_dict1(matr_questions, list_questions)
-    logging.info(f"dialogs_handler \t - INFO: dict_answers: {dict_answers}")
 
     tmp_n_answers = 0
     file_names = []
@@ -1122,35 +1119,20 @@ def dialogs_handler(dir_path:str):
         else:
             tmp_n_answers = n_answers
 
-        # if tmp_n_answers is 1 generate 2, but consider just one
-        tmp_n_answers_2 = tmp_n_answers
-        if tmp_n_answers == 1:
-            tmp_n_answers_2 = 2
-
         tmp_cycle_limit = 10
         prev_answerers = answerers
         count_cycle_limit = 1
         # shuffle answerers 
         if limit_male_female == "0:0":
-            while True:
-                random.shuffle(prev_answerers)
-                answerers = prev_answerers[:tmp_n_answers_2]
-                if answerers[0] != interrogator:
-                    logging.info(f"dialogs_handler \t - INFO: answerers {answerers}")
-                    break
-                elif count_cycle_limit > tmp_cycle_limit:
-                    raise Exception(f"Internal Error: answerers: {answerers}, interrogator: {interrogator}")
-                else:
-                    count_cycle_limit +=1
+            answerers = answerers[:tmp_n_answers]
         else:
             if gender_fixed_quantity == True:
-                tmp_n_answers_2 = limit_male + limit_female
+                tmp_n_answers = limit_male + limit_female
             while True:
                 random.shuffle(answerers)
-                answerers = handle_M_F(answerers, limit_male, limit_female, tmp_n_answers_2, gen_participants)
+                answerers = handle_M_F(answerers, limit_male, limit_female, tmp_n_answers, gen_participants)
                 if answerers[0] != interrogator:
-                    tmp_n_answers_2 = len(answerers)
-                    logging.info(f"dialogs_handler \t - INFO: answerers {answerers}")
+                    tmp_n_answers = len(answerers)
                     break
                 elif count_cycle_limit > tmp_cycle_limit:
                     raise Exception(f"Internal Error: answerers: {answerers}, interrogator: {interrogator}")
